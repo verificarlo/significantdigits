@@ -123,11 +123,12 @@ def significant_digits_cnh(array,
     z = compute_z(array, reference, precision, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[0]
     std = np.std(z, axis=0, dtype=internal_dtype)
+    std0 = np.ma.masked_array(std == 0)
     chi2 = scipy.stats.chi2.ppf(1-confidence/2, nb_samples)
     inorm = scipy.stats.norm.ppf((probability+1)/2)
     delta_chn = 0.5*np.log2((nb_samples - 1)/chi2) + np.log2(inorm)
     sig = -np.log2(std) - delta_chn
-
+    sig[std0] = np.finfo(z.dtype).nmant
     return sig
 
 
@@ -212,11 +213,12 @@ def contributing_digits_cnh(array,
     z = compute_z(array, reference, precision, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[0]
     std = np.std(z, axis=0, dtype=internal_dtype)
+    std0 = np.ma.masked_array(std == 0)
     chi2 = scipy.stats.chi2.ppf(1-confidence/2, nb_samples)
     delta_chn = 0.5*np.log2((nb_samples - 1)/chi2) + \
         np.log2(probability-0.5) + np.log2(2*np.sqrt(2*np.pi))
     con = -np.log2(std) - delta_chn
-
+    con[std0] = np.finfo(z.dtype).nmant
     return con
 
 
