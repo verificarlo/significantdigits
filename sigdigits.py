@@ -9,16 +9,11 @@ import scipy.stats
 
 class Method(Enum):
     """
-    Parker: Parker's formula
-            Particular case of CHN where
-            - Precision: Relative
-            - Reference: mean_X
     CNH: Centered Normality Hypothesis
          X follows a Gaussian law centered around the reference or
          Z follows a Gaussian law centered around 0
     General: No assumption about the distribution of X or Z
     """
-    Parker = "Parker"
     CNH = "Centered Normality Hypothese"
     General = "General"
 
@@ -38,8 +33,8 @@ class Precision(Enum):
 
 internal_dtype = np.dtype(np.float64)
 default_probability = 0.95
-default_contributing_probability = 0.51
 default_confidence = 0.95
+default_contributing_probability = 0.51
 
 
 def assert_is_valid_method(method):
@@ -170,16 +165,7 @@ def significant_digits(array,
 
     sig = None
 
-    if method == Method.Parker:
-        reference = np.mean(array, axis=0, dtype=internal_dtype)
-        sig = significant_digits_cnh(array,
-                                     reference,
-                                     Precision.Relative,
-                                     probability,
-                                     confidence,
-                                     False)
-
-    elif method == Method.CNH:
+    if method == Method.CNH:
         sig = significant_digits_cnh(array,
                                      reference,
                                      precision,
@@ -261,16 +247,7 @@ def contributing_digits(array,
 
     con = None
 
-    if method == Method.Parker:
-        reference = np.mean(array, axis=0, dtype=internal_dtype)
-        con = contributing_digits_cnh(array,
-                                      reference,
-                                      Precision.Relative,
-                                      probability,
-                                      confidence,
-                                      False)
-
-    elif method == Method.CNH:
+    if method == Method.CNH:
         con = contributing_digits_cnh(array,
                                       reference,
                                       precision,
