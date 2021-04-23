@@ -12,8 +12,14 @@ if __name__ == '__main__':
             sig = sigdigits.significant_digits(
                 x, ref, precision=precision, method=method)
             print(f"[{method.name:7}] {precision.name:9} significant:", sig)
+            sig = sigdigits.significant_digits(
+                x, ref, precision=precision, method=method, base=10)
+            print(f"[{method.name:7}] {precision.name:9} significant:", sig)
 
         for precision in sigdigits.Precision:
             con = sigdigits.contributing_digits(
                 x, ref, precision=precision, method=method)
+            print(f"[{method.name:7}] {precision.name:8} contributing:", con)
+            con = sigdigits.contributing_digits(
+                x, ref, precision=precision, method=method, base=10)
             print(f"[{method.name:7}] {precision.name:8} contributing:", con)
