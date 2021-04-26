@@ -156,7 +156,7 @@ def significant_digits_general(array,
     for k in range(max_bits, -1, -1):
         pow2minusk = np.power(2, -np.float(k))
         _z = np.all(np.abs(z_nan_mask) <= pow2minusk, axis=axis)
-        z_mask = np.ma.masked_array(_z, axis=axis, fill_value=k)
+        z_mask = np.ma.masked_array(_z, fill_value=k)
         sig[~z_mask] = k
         if np.all(z_mask):
             break
