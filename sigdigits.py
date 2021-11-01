@@ -132,7 +132,10 @@ def significant_digits_cnh(array,
     inorm = scipy.stats.norm.ppf((probability+1)/2)
     delta_chn = 0.5*np.log2((nb_samples - 1)/chi2) + np.log2(inorm)
     sig = -np.log2(std) - delta_chn
-    sig[std0] = np.finfo(z.dtype).nmant - delta_chn
+    if sig.ndim != 0:
+        sig[std0] = np.finfo(z.dtype).nmant - delta_chn
+    elif std0:
+        sig = np.finfo(z.dtype).nmant - delta_chn
     return sig
 
 
@@ -153,15 +156,23 @@ def significant_digits_general(array,
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(z.dtype).nmant
     sig = np.full(sample_shape, max_bits, dtype=np.float64)
+    z_mask = np.full(sample_shape, False)
     for k in range(max_bits, -1, -1):
-        pow2minusk = np.power(2, -np.float(k))
-        _z = np.all(np.abs(z_nan_mask) <= pow2minusk, axis=axis)
-        z_mask = np.ma.masked_array(_z, fill_value=k)
-        sig[~z_mask] = k
-        if np.all(z_mask):
-            break
+        if z.ndim == 1:
+            pow2minusk = np.power(2, -np.float(k))
+            _z = np.all(np.abs(z_nan_mask) <= pow2minusk, axis=axis)
+            if _z:
+                sig = k
+                break
+        else:
+            pow2minusk = np.power(2, -np.float(k))
+            _z = np.all(np.abs(z_nan_mask) <= pow2minusk, axis=axis)
+            z_mask = np.ma.masked_array(data=_z, mask=_z)
+            sig[~z_mask] = k
+            if np.all(_z):
+                break
 
-    sig[z_mask.mask] = np.nan
+    # sig[z_mask.mask] = np.nan
     return sig
 
 
