@@ -1,12 +1,13 @@
-import itertools
 import csv
-import sys
+import itertools
 import os
+import sys
 
 import numpy as np
 import pytest
 
-import significantdigits.sigdigits as significantdigits
+import significantdigits.sigdigits
+import significantdigits.args
 
 
 class Save:
@@ -36,8 +37,8 @@ class RunMetricDigitsTest:
     def __init__(self, metric):
         self.metric = self.check_metric(metric)
         self.bases = [2, 10]
-        self.methods = significantdigits.Method
-        self.errors = significantdigits.Error
+        self.methods = significantdigits.sigdigits.Method
+        self.errors = significantdigits.sigdigits.Error
 
     def check_metric(self, metric):
         if metric in self.available_metrics:
@@ -48,11 +49,11 @@ class RunMetricDigitsTest:
             sys.exit(1)
 
     def compute_significant_digits(self, x, ref, error, method, base):
-        return significantdigits.significant_digits(
+        return significantdigits.sigdigits.significant_digits(
             x, ref, error=error, method=method, base=base)
 
     def compute_contributing_digits(self, x, ref, error, method, base):
-        return significantdigits.contributing_digits(
+        return significantdigits.sigdigits.contributing_digits(
             x, ref, error=error, method=method, base=base)
 
     def compute_metric(self, *args, **kwargs):
@@ -123,3 +124,8 @@ def save(request):
 @pytest.fixture
 def load(request):
     return Load()
+
+
+@pytest.fixture
+def parser(request):
+    return significantdigits.args.create_parser()

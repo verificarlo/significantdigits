@@ -9,6 +9,9 @@ RUN cd /opt/build/significantdigits && \
 
 ENV PYTHONPATH=/opt/build/:${PYTHONPATH}
 
+RUN cd /opt/build/significantdigits/significantdigits/ && \
+    python3 -m pytest -k args --capture=tee-sys
+
 ENV VFC_BACKENDS "libinterflop_mca.so -m rr"
 
 RUN cd /opt/build/significantdigits/significantdigits/ && \

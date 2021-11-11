@@ -1,5 +1,5 @@
-import significantdigits.io.numpy as io_numpy
-import significantdigits.io.stdin as io_stdin
+import significantdigits.export.numpy as io_numpy
+import significantdigits.export.stdin as io_stdin
 
 _input_formats = dict(stdin=io_stdin.StdinParser,
                       npy=io_numpy.NumpyParser)

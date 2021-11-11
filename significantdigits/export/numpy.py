@@ -1,7 +1,6 @@
-from significantdigits.io.generic import Exporter, Parser
+from significantdigits.export.generic import Exporter, Parser
 
 import numpy as np
-
 
 class NumpyParser(Parser):
 

@@ -1,4 +1,4 @@
-# sigdigits package
+# Significantdigits package
 
 Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 
