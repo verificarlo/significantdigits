@@ -2,10 +2,11 @@ from significantdigits.export.generic import Exporter, Parser
 
 import numpy as np
 
+
 class NumpyParser(Parser):
 
     def parse(self, filename):
-        return np.load(filename[0])
+        return np.load(filename[0], allow_pickle=True)
 
 
 class NumpyExporter(Exporter):

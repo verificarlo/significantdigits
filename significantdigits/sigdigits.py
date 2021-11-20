@@ -94,6 +94,9 @@ _valid_reference_types = (float, tuple, list, np.ndarray)
 
 def preprocess_inputs(array, reference):
 
+    if scipy.sparse.issparse(array[0]):
+        array = np.asanyarray([i.toarray() for i in array])
+
     if not isinstance(array, _valid_input_types):
         raise TypeError(f'Input array must be '
                         f'one of the following types {_valid_input_types}')
@@ -102,6 +105,8 @@ def preprocess_inputs(array, reference):
         array = np.array(array)
 
     if reference is not None:
+        if scipy.sparse.issparse(reference):
+            reference = reference.toarray()
         if not isinstance(reference, _valid_reference_types):
             raise TypeError(f'Reference must be '
                             f'one of the following types {_valid_reference_types}')
@@ -200,14 +205,13 @@ def significant_digits_general(array,
     z = compute_z(array, reference, error, axis=axis,
                   shuffle_samples=shuffle_samples)
 
-    z_nan_mask = np.ma.masked_invalid(z)
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(z.dtype).nmant
     significant = np.full(sample_shape, max_bits, dtype=np.float64)
     z_mask = np.full(sample_shape, False)
     for k in range(max_bits, -1, -1):
         pow2minusk = np.power(2, -np.float64(k))
-        _z = np.all(np.abs(z_nan_mask) <= pow2minusk, axis=axis)
+        _z = np.all(np.abs(z) <= pow2minusk, axis=axis)
         if z.ndim == 0 and _z:
             significant = k
             break

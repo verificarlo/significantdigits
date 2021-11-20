@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="significantdigits-pkg",
+    name="significantdigits",
     version="0.0.1",
     author="Verificarlo contributors",
     author_email="verificarlo@googlegroups.com",

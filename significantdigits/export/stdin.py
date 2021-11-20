@@ -6,7 +6,7 @@ import numpy as np
 class StdinParser(Parser):
 
     def parse(self, values):
-        return np.array(values)
+        return np.asarray(values)
 
 
 class StdinExporter(Exporter):
