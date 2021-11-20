@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 import significantdigits.sigdigits as sigdigits
 
@@ -64,6 +63,7 @@ def create_parser():
                         help='Axis along which samples are displayed')
     parser.add_argument('--base',
                         default=2,
+                        type=int,
                         help='Base')
     parser.add_argument('--input-format',
                         choices=input_formats,

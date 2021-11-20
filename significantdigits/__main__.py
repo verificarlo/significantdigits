@@ -7,6 +7,7 @@ import numpy as np
 import significantdigits.export as export
 from significantdigits.sigdigits import *
 import significantdigits.args as argparse
+import significantdigits.stats as stats
 
 
 def main(args):
@@ -17,7 +18,7 @@ def main(args):
     if args.reference:
         reference = parser.parse(args.reference)
     else:
-        reference = np.mean(inputs, axis=args.axis)
+        reference = stats.mean(inputs, axis=args.axis)
 
     if args.metric == Metric.Significant:
         s = significant_digits(array=inputs,
