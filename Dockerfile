@@ -1,4 +1,4 @@
-FROM verificarlo/fuzzy:v0.5.0-lapack-python3.8.5-numpy-scipy
+FROM verificarlo/fuzzy:v0.6.0-lapack-python3.8.5-numpy-scipy
 
 COPY . /opt/build/significantdigits
 
