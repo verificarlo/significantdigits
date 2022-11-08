@@ -105,13 +105,13 @@ def get_reference_type():
 
 
 def assert_is_valid_method(method: Method | str) -> None:
-    if method not in Method or method not in _Method_names:
+    if method not in Method or method not in Method.names:
         raise TypeError(
             f"provided invalid method {method}: must be one of {list(Method)}")
 
 
 def assert_is_valid_error(error: Error | str) -> None:
-    if error not in Error or error not in _Error_names:
+    if error not in Error or error not in Error.names:
         raise TypeError(
             f"provided invalid error {error}: must be one of {list(Error)}")
 
