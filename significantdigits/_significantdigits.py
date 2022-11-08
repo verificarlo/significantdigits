@@ -10,23 +10,6 @@ import numpy as np
 import scipy
 import scipy.stats
 
-__all__ = ['Metric', 'Method', 'Error',
-           'InputType', 'ReferenceType',
-           'get_input_type',
-           'get_reference_type',
-           'compute_z',
-           'significant_digits_cnh',
-           'significant_digits_general',
-           'significant_digits',
-           'contributing_digits_cnh',
-           'contributing_digits_general',
-           'contributing_digits',
-           'probability_estimation_general',
-           'minimum_number_of_trials',
-           'default_probability',
-           'default_confidence'
-           ]
-
 
 class AutoName(Enum):
     def _generate_next_value_(name, start, count, last_values):
