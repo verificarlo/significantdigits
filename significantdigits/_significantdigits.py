@@ -23,6 +23,8 @@ __all__ = ['Metric', 'Method', 'Error',
            'contributing_digits',
            'probability_estimation_general',
            'minimum_number_of_trials',
+           'default_probability',
+           'default_confidence'
            ]
 
 
