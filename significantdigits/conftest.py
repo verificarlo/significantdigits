@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import pytest
 
-import significantdigits.sigdigits
+import significantdigits._significantdigits
 import significantdigits.args
 
 
@@ -37,8 +37,8 @@ class RunMetricDigitsTest:
     def __init__(self, metric):
         self.metric = self.check_metric(metric)
         self.bases = [2, 10]
-        self.methods = significantdigits.sigdigits.Method
-        self.errors = significantdigits.sigdigits.Error
+        self.methods = _significantdigits._significantdigits.Method
+        self.errors = _significantdigits._significantdigits.Error
 
     def check_metric(self, metric):
         if metric in self.available_metrics:
@@ -49,11 +49,11 @@ class RunMetricDigitsTest:
             sys.exit(1)
 
     def compute_significant_digits(self, x, ref, error, method, base):
-        return significantdigits.sigdigits.significant_digits(
+        return _significantdigits._significantdigits.significant_digits(
             x, ref, error=error, method=method, base=base)
 
     def compute_contributing_digits(self, x, ref, error, method, base):
-        return significantdigits.sigdigits.contributing_digits(
+        return _significantdigits._significantdigits.contributing_digits(
             x, ref, error=error, method=method, base=base)
 
     def compute_metric(self, *args, **kwargs):
@@ -128,4 +128,4 @@ def load(request):
 
 @pytest.fixture
 def parser(request):
-    return significantdigits.args.create_parser()
+    return _significantdigits.args.create_parser()

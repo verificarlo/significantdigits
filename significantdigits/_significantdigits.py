@@ -4,11 +4,26 @@ from typing import Tuple
 import math
 import warnings
 from enum import Enum, auto
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import scipy
 import scipy.stats
+
+__all__ = ['Metric', 'Method', 'Error',
+           'InputType', 'ReferenceType',
+           'get_input_type',
+           'get_reference_type',
+           'compute_z',
+           'significant_digits_cnh',
+           'significant_digits_general',
+           'significant_digits',
+           'contributing_digits_cnh',
+           'contributing_digits_general',
+           'contributing_digits',
+           'probability_estimation_general',
+           'minimum_number_of_trials',
+           ]
 
 
 class AutoName(Enum):
@@ -65,16 +80,40 @@ default_confidence = {Metric.Significant: 0.95,
                       Metric.Contributing: 0.95}
 
 InputType = TypeVar('InputType', np.ndarray, tuple, list)
-ReferenceType = TypeVar(
-    'ReferenceType', np.ndarray | tuple | list | float)
-_valid_input_types = (tuple, list, np.ndarray)
-_valid_reference_types = (float, tuple, list, np.ndarray)
+r'''Valid random variable inputs type (np.ndarray, tuple, list)
+
+Types allowing for `array` in significant_digits and contributing_digits functions
+
+'''
+
+ReferenceType = TypeVar('ReferenceType', np.ndarray, tuple, list, float, int)
+r'''Valid reference inputs type (np.ndarray, tuple, list, float, int)
+
+Types allowing for `reference` in significant_digits and contributing_digits functions
+
+'''
 
 
-def assert_is_valid_method(method: Method) -> None:
-    if method not in Method:
+def get_input_type():
+    r''' Returns InputType subtypes'''
+    return InputType.__constraints__
+
+
+def get_reference_type():
+    r'''Returns ReferenceType subtypes'''
+    return ReferenceType.__constraints__
+
+
+def assert_is_valid_method(method: Method | str) -> None:
+    if method not in Method or method not in _Method_names:
         raise TypeError(
             f"provided invalid method {method}: must be one of {list(Method)}")
+
+
+def assert_is_valid_error(error: Error | str) -> None:
+    if error not in Error or error not in _Error_names:
+        raise TypeError(
+            f"provided invalid error {error}: must be one of {list(Error)}")
 
 
 def assert_is_probability(probability: float) -> None:
@@ -87,8 +126,22 @@ def assert_is_confidence(confidence: float) -> None:
         raise TypeError("confidence must be between 0 and 1")
 
 
-def change_base(sig: InputType, base: int) -> InputType:
-    sig_power2 = np.power(2, sig)
+def change_base(array: InputType, base: int) -> InputType:
+    '''Changes basis from binary to `base` representation
+
+    Parameters
+    ----------
+    array : np.ndarray
+        array_like containing significant or contributing bits
+    basis : int
+        output basis
+
+    Returns
+    -------
+    np.ndarray
+        Array convert to base `base`
+    '''
+    sig_power2 = np.power(2, array)
 
     def to_base(x):
         return math.log(x, base)
@@ -104,10 +157,10 @@ def preprocess_inputs(array: np.ndarray | tuple | list,
     if scipy.sparse.issparse(array[0]):
         array = np.asanyarray([i.toarray() for i in array])
 
-    if not isinstance(array, _valid_input_types):
+    if not isinstance(array, InputType.__constraints__):
         raise TypeError(f'Input array must be '
                         f'one of the following types '
-                        f'{_valid_input_types}')
+                        f'{InputType.__constraints__}')
 
     if not isinstance(array, np.ndarray):
         array = np.array(array)
@@ -115,10 +168,10 @@ def preprocess_inputs(array: np.ndarray | tuple | list,
     if reference is not None:
         if scipy.sparse.issparse(reference):
             reference = reference.toarray()
-        if not isinstance(reference, _valid_reference_types):
+        if not isinstance(reference, ReferenceType.__constraints__):
             raise TypeError(f'Reference must be '
                             f'one of the following types '
-                            f'{_valid_reference_types}')
+                            f'{ReferenceType.__constraints__}')
 
         if not isinstance(reference, np.ndarray):
             reference = np.array(reference)
@@ -127,9 +180,9 @@ def preprocess_inputs(array: np.ndarray | tuple | list,
 
 
 def compute_z(array: InputType,
-              reference: ReferenceType,
-              error: Error,
-              axis: int = 0,
+              reference: Optional[ReferenceType],
+              error: Error | str,
+              axis: int,
               shuffle_samples: bool = False) -> InputType:
     r"""Compute Z, the distance between the random variable and the reference
 
@@ -150,22 +203,27 @@ def compute_z(array: InputType,
 
     Parameters
     ----------
-    array : numpy.ndarray
+    array : InputType
         The random variable
-    reference : None | float | numpy.ndarray
+    reference : Optional[ReferenceType]
         The reference to compare against
     error : Method.Error | str
         The error function to compute Z
-    axis : int
+    axis : int, default=0
         The axis or axes along which compute Z
-        default: 0
-    shuflle_samples : bool
+    shuflle_samples : bool, default=False
         If True, shuffles the groups when the reference is None
 
     Returns
     -------
     array : numpy.ndarray
         The result of Z following the error method choose
+
+    See Also
+    --------
+    significantdigits.InputType : Type for random variable
+    significantdigits.ReferenceType : Type for reference
+
 
     """
     nb_samples = array.shape[axis]
@@ -178,7 +236,7 @@ def compute_z(array: InputType,
         nb_samples /= 2
         if shuffle_samples:
             np.random.shuffle(array)
-        x, y = np.split(array, 2)
+        x, y = np.split(array, 2, axis=axis)
     elif reference.ndim == array.ndim:
         x = array
         y = reference
@@ -206,38 +264,29 @@ def compute_z(array: InputType,
 
 
 def significant_digits_cnh(array: InputType,
-                           reference: ReferenceType,
-                           error: Error,
+                           reference: Optional[ReferenceType],
+                           axis: int,
+                           error: Error | str,
                            probability: float,
                            confidence: float,
-                           axis: int = 0,
                            shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits for Centered Normality Hypothesis (CNH)
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputType
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceType]
         Reference for comparing the array
-    base: int
-        Base in which represent the significant digits
-    axis: int | tuple(int)
+    axis: int
         Axis or axes along which the significant digits are computed
-        default: None
     error : Error | str
         Name of the error function to use to compute Z
-        default: Error.Relative
-    method : Method | str
-        Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
     probability : float
         Probability for the significant digits result
-        default: 0.95
     confidence : float
         Confidence level for the significant digits result
-        default: 0.95
-    shuffle_samples : bool
+    shuffle_samples : bool, default=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
@@ -251,6 +300,8 @@ def significant_digits_cnh(array: InputType,
     --------
     significantdigits.contributing_digits_general : Computes the contributing digits in general case
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -279,9 +330,9 @@ def significant_digits_cnh(array: InputType,
 
 
 def significant_digits_general(array: InputType,
-                               reference: ReferenceType,
-                               error: Error,
-                               axis: int = 0,
+                               reference: Optional[ReferenceType],
+                               axis: int,
+                               error: Error | str,
                                shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits for unknown underlying distribution
 
@@ -292,22 +343,15 @@ def significant_digits_general(array: InputType,
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputType
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceType]
         Reference for comparing the array
-    base: int
-        Base in which represent the significant digits
-    axis: int | tuple(int)
+    axis: int
         Axis or axes along which the significant digits are computed
-        default: None
     error : Error | str
         Name of the error function to use to compute Z
-        default: Error.Relative
-    method : Method | str
-        Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
-    shuffle_samples : bool
+    shuffle_samples : bool, optional=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
@@ -321,6 +365,8 @@ def significant_digits_general(array: InputType,
     --------
     significantdigits.significant_digits_cnh : Computes the contributing digits under CNH
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -360,8 +406,8 @@ def significant_digits(array: InputType,
                        reference: Optional[ReferenceType] = None,
                        axis: int = 0,
                        base: int = 2,
-                       error: Error = Error.Relative,
-                       method: Method = Method.CNH,
+                       error: str | Error = Error.Relative,
+                       method: str | Method = Method.CNH,
                        probability: float = default_probability[Metric.Significant],
                        confidence: float = default_confidence[Metric.Significant],
                        shuffle_samples: bool = False) -> InputType:
@@ -369,30 +415,25 @@ def significant_digits(array: InputType,
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputType
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceType], optional=None
         Reference for comparing the array
-    base: int
+    base: int, optional=2
         Base in which represent the significant digits
-    axis: int | tuple(int)
+    axis: int, optional=0
         Axis or axes along which the significant digits are computed
-        default: None
-    error : Error | str
+    error : Error | str, optional=Error.Relative
         Name of the error function to use to compute Z
-        default: Error.Relative
-    method : Method | str
+    method : Method | str, optional=Method.CNH
         Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
-    probability : float
+    probability : float, default=0.95
         Probability for the significant digits result
-        default: 0.95
-    confidence : float
+    confidence : float, default=0.95
         Confidence level for the significant digits result
-        default: 0.95
-    shuffle_samples : bool
-        If reference is None, the array is split in two and
-        comparison is done between both pieces.
+    shuffle_samples : bool, optional=False
+        If reference is None, the array is split in two and \
+        comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
 
     Returns
@@ -404,6 +445,8 @@ def significant_digits(array: InputType,
     --------
     significantdigits.contributing_digits : Computes the contributing digits
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -413,9 +456,10 @@ def significant_digits(array: InputType,
     ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
 
     '''
-
     assert_is_probability(probability)
     assert_is_confidence(confidence)
+    assert_is_valid_method(method)
+    assert_is_valid_error(error)
 
     significant = None
 
@@ -444,36 +488,29 @@ def significant_digits(array: InputType,
 
 
 def contributing_digits_cnh(array: InputType,
-                            reference: ReferenceType,
-                            error: Error,
+                            reference: Optional[ReferenceType],
+                            axis: int,
+                            error: Error | str,
                             probability: float,
                             confidence: float,
-                            axis: int = 0,
                             shuffle_samples: bool = False) -> InputType:
     r'''Compute contributing digits for Centered Hypothesis Normality
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputType
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceType]
         Reference for comparing the array
-    axis: Optional[int|tuple(int)]
+    axis: int
         Axis or axes along which the contributing digits are computed
-        default: None
     error : Error | str
         Name of the error function to use to compute E(array, reference).
-        default: Error.Relative
-    method : Method | str
-        Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
     probability : float
         Probability for the contributing digits result
-        default: 0.51
     confidence : float
         Confidence level for the contributing digits result
-        default: 0.95
-    shuffle_samples : bool
+    shuffle_samples : bool, default=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
@@ -487,6 +524,8 @@ def contributing_digits_cnh(array: InputType,
     --------
     significantdigits.significant_general : Computes the significant digits for general case
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -503,9 +542,9 @@ def contributing_digits_cnh(array: InputType,
     nb_samples = z.shape[axis]
     std = np.std(z, axis=axis, dtype=internal_dtype)
     std0 = np.ma.masked_array(std == 0)
-    chi2 = scipy.stats.chi2.interval(confidence, nb_samples-1)[0]
-    delta_chn = 0.5*np.log2((nb_samples - 1)/chi2) + \
-        np.log2(probability-0.5) + np.log2(2*np.sqrt(2*np.pi))
+    chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
+    delta_chn = 0.5 * np.log2((nb_samples - 1)/chi2) + \
+        np.log2(probability - 0.5) + np.log2(2 * np.sqrt(2 * np.pi))
     contributing = -np.log2(std) - delta_chn
     if contributing.ndim != 0:
         contributing[std0] = np.finfo(z.dtype).nmant - delta_chn
@@ -516,10 +555,10 @@ def contributing_digits_cnh(array: InputType,
 
 
 def contributing_digits_general(array: InputType,
-                                reference: ReferenceType,
-                                error: Error,
+                                reference: Optional[ReferenceType],
+                                axis: int,
+                                error: Error | str,
                                 probability: float,
-                                axis: int = 0,
                                 shuffle_samples: bool = False) -> InputType:
     r'''Computes contributing digits for unknown underlying distribution
 
@@ -529,23 +568,17 @@ def contributing_digits_general(array: InputType,
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputType
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceType]
         Reference for comparing the array
-    axis: Optional[int|tuple(int)]
+    axis: int
         Axis or axes along which the contributing digits are computed
-        default: None
     error : Error | str
-        Name of the error function to use to compute E(array, reference).
-        default: Error.Relative
-    method : Method | str
-        Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
+        Name of the error function to use to compute Z.
     probability : float
         Probability for the contributing digits result
-        default: 0.51
-    shuffle_samples : bool
+    shuffle_samples : bool, default=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
@@ -559,6 +592,8 @@ def contributing_digits_general(array: InputType,
     --------
     significantdigits.significant_digits_cnh : Computes the significant digits under CNH
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -593,11 +628,11 @@ def contributing_digits_general(array: InputType,
 
 
 def contributing_digits(array: InputType,
-                        reference: ReferenceType = None,
+                        reference: Optional[ReferenceType] = None,
                         axis: int = 0,
                         base: int = 2,
-                        error: Error = Error.Relative,
-                        method: Method = Method.CNH,
+                        error: str | Error = Error.Relative,
+                        method: str | Method = Method.CNH,
                         probability: float = default_probability[Metric.Contributing],
                         confidence: float = default_confidence[Metric.Contributing],
                         shuffle_samples: bool = False) -> InputType:
@@ -610,26 +645,22 @@ def contributing_digits(array: InputType,
 
     Parameters
     ----------
-    array: numpy.ndarray
+    array: InputArray
         Element to compute
-    reference: Optional[float|numpy.ndarray]
+    reference: Optional[ReferenceArray], default=None
         Reference for comparing the array
-    axis: Optional[int|tuple(int)]
+    axis: int, default=0
         Axis or axes along which the contributing digits are computed
         default: None
-    error : Error | str
+    error : Error | str, default=Error.Relative
         Name of the error function to use to compute E(array, reference).
-        default: Error.Relative
-    method : Method | str
+    method : Method | str, default=Method.CNH
         Name of the method for the underlying distribution hypothesis
-        default: Method.CNH (Centered Normality Hypothesis)
-    probability : float
+    probability : float, default=0.51
         Probability for the contributing digits result
-        default: 0.51
-    confidence : float
+    confidence : float, default=0.95
         Confidence level for the contributing digits result
-        default: 0.95
-    shuffle_samples : bool
+    shuffle_samples : bool, default=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
@@ -643,6 +674,8 @@ def contributing_digits(array: InputType,
     --------
     significantdigits.significant_digits : Computes the significant digits
     significantdigits.compute_z : Computes the error between random variable and reference
+    significantdigits.get_input_type : get InputType types
+    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -655,6 +688,8 @@ def contributing_digits(array: InputType,
 
     assert_is_probability(probability)
     assert_is_confidence(confidence)
+    assert_is_valid_method(method)
+    assert_is_valid_error(error)
 
     contributing = None
 

@@ -22,7 +22,7 @@ class TestDiscriminant:
     args = (7, -8686, 2)
 
     def discriminant(self, a, b, c):
-        return (-b - math.sqrt(b*b - 4*a*c))/(2*a)
+        return (-b - math.sqrt(b * b - 4 * a * c)) / (2 * a)
 
     def test_fuzzy(self, run_fuzzy, nsamples, save):
         samples = run_fuzzy.run(nsamples, self.discriminant, *self.args)
@@ -77,16 +77,16 @@ class TestMuller:
     def muller(self, x0, n):
 
         def sequence(x_k):
-            num = (3*x_k**4 - 20*x_k**3 + 35*x_k**2 - 24)
-            den = (4*x_k**3 - 30*x_k**2 + 70*x_k - 50)
-            return num/den
+            num = (3 * x_k ** 4 - 20 * x_k ** 3 + 35 * x_k ** 2 - 24)
+            den = (4 * x_k ** 3 - 30 * x_k ** 2 + 70 * x_k - 50)
+            return num / den
 
         x_k0 = x0
         x_k1 = x_k0
 
         results = []
 
-        for i in range(1, n+1):
+        for _ in range(1, n + 1):
             results.append(x_k1)
             x_k1, x_k0 = sequence(x_k0), x_k1
 

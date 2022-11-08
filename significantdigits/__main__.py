@@ -2,15 +2,16 @@
 
 import sys
 
-import numpy as np
 
-import significantdigits.export as export
-from significantdigits.sigdigits import *
-import significantdigits.args as argparse
-import significantdigits.stats as stats
+from significantdigits import export
+from significantdigits import (
+    significant_digits, contributing_digits, Metric)
+from significantdigits import args as argparse
+from significantdigits import stats
 
 
-def main(args):
+def main():
+    args = argparse.parse_args()
     parser = export.get_parser(args.input_format)()
     exporter = export.get_exporter(args.output_format)(args.output)
 
@@ -46,5 +47,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = argparse.parse_args()
-    main(args)
+    main()

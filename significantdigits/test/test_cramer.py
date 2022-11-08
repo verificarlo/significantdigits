@@ -15,10 +15,10 @@ class TestCramer:
     args = (a, b)
 
     def cramer(self, a, b):
-        det = a[0, 0]*a[1, 1] - a[1, 0]*a[0, 1]
-        det0 = b[0]*a[1, 1] - b[1]*a[0, 1]
-        det1 = a[0, 0]*b[1] - a[1, 0]*b[0]
-        return np.array([det0/det, det1/det])
+        det = a[0, 0] * a[1, 1] - a[1, 0] * a[0, 1]
+        det0 = b[0] * a[1, 1] - b[1] * a[0, 1]
+        det1 = a[0, 0] * b[1] - a[1, 0] * b[0]
+        return np.array([det0 / det, det1 / det])
 
     def test_fuzzy(self, run_fuzzy, nsamples, save):
         samples = run_fuzzy.run(nsamples, self.cramer, *self.args)
