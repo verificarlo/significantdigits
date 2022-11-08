@@ -9,9 +9,9 @@ output_formats = ['stdin', 'npy']
 
 def check_args(args):
 
-    args.metric = significantdigits._Metric_map[args.metric]
-    args.method = significantdigits._Method_map[args.method]
-    args.error = significantdigits._Error_map[args.error]
+    args.metric = significantdigits.Metric.map[args.metric]
+    args.method = significantdigits.Method.map[args.method]
+    args.error = significantdigits.Error.map[args.error]
 
     if args.probability is not None:
         significantdigits.assert_is_probability(args.probability)
@@ -43,15 +43,15 @@ def create_parser():
                                      prog="significantdigits")
     parser.add_argument('--metric',
                         required=True,
-                        choices=significantdigits._Metric_names,
+                        choices=significantdigits.Metric.names,
                         help='Metric to compute')
     parser.add_argument('--method',
                         default=significantdigits.Method.CNH.name,
-                        choices=significantdigits._Method_names,
+                        choices=significantdigits.Method.names,
                         help='Method to use')
     parser.add_argument('--error',
                         default=significantdigits.Error.Relative.name,
-                        choices=significantdigits._Error_names,
+                        choices=significantdigits.Error.names,
                         help='Error to use')
     parser.add_argument('--probability',
                         type=float,

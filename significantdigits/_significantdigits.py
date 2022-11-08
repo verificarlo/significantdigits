@@ -64,14 +64,14 @@ class Error(AutoName):
     Relative = auto()
 
 
-_Metric_names = vars(Metric)['_member_names_']
-_Metric_map = vars(Metric)['_value2member_map_']
+Metric.names = vars(Metric)['_member_names_']
+Metric.map = vars(Metric)['_value2member_map_']
 
-_Method_names = vars(Method)['_member_names_']
-_Method_map = vars(Method)['_value2member_map_']
+Method.names = vars(Method)['_member_names_']
+Method.map = vars(Method)['_value2member_map_']
 
-_Error_names = vars(Error)['_member_names_']
-_Error_map = vars(Error)['_value2member_map_']
+Error.names = vars(Error)['_member_names_']
+Error.map = vars(Error)['_value2member_map_']
 
 internal_dtype = np.dtype(np.float64)
 default_probability = {Metric.Significant: 0.95,
