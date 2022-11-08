@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-import significantdigits._significantdigits as _significantdigits
+import significantdigits
 
 input_formats = ['stdin', 'npy']
 output_formats = ['stdin', 'npy']
@@ -9,19 +9,19 @@ output_formats = ['stdin', 'npy']
 
 def check_args(args):
 
-    args.metric = _significantdigits._Metric_map[args.metric]
-    args.method = _significantdigits._Method_map[args.method]
-    args.error = _significantdigits._Error_map[args.error]
+    args.metric = significantdigits._Metric_map[args.metric]
+    args.method = significantdigits._Method_map[args.method]
+    args.error = significantdigits._Error_map[args.error]
 
     if args.probability is not None:
-        _significantdigits.assert_is_probability(args.probability)
+        significantdigits.assert_is_probability(args.probability)
     else:
-        args.probability = _significantdigits.default_probability[args.metric]
+        args.probability = significantdigits.default_probability[args.metric]
 
     if args.confidence is not None:
-        _significantdigits.assert_is_confidence(args.probability)
+        significantdigits.assert_is_confidence(args.probability)
     else:
-        args.confidence = _significantdigits.default_confidence[args.metric]
+        args.confidence = significantdigits.default_confidence[args.metric]
 
     if args.input_format == 'stdin':
         try:
@@ -32,10 +32,10 @@ def check_args(args):
             sys.exit(2)
 
     if args.probability:
-        _significantdigits.assert_is_probability(args.probability)
+        significantdigits.assert_is_probability(args.probability)
 
     if args.confidence:
-        _significantdigits.assert_is_confidence(args.confidence)
+        significantdigits.assert_is_confidence(args.confidence)
 
 
 def create_parser():
@@ -43,15 +43,15 @@ def create_parser():
                                      prog="significantdigits")
     parser.add_argument('--metric',
                         required=True,
-                        choices=_significantdigits._Metric_names,
+                        choices=significantdigits._Metric_names,
                         help='Metric to compute')
     parser.add_argument('--method',
-                        default=_significantdigits.Method.CNH.name,
-                        choices=_significantdigits._Method_names,
+                        default=significantdigits.Method.CNH.name,
+                        choices=significantdigits._Method_names,
                         help='Method to use')
     parser.add_argument('--error',
-                        default=_significantdigits.Error.Relative.name,
-                        choices=_significantdigits._Error_names,
+                        default=significantdigits.Error.Relative.name,
+                        choices=significantdigits._Error_names,
                         help='Error to use')
     parser.add_argument('--probability',
                         type=float,
