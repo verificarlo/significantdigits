@@ -1,7 +1,10 @@
 
+from typing import TypeVar
+from typing import Tuple
 import math
 import warnings
 from enum import Enum, auto
+from typing import List, Optional
 
 import numpy as np
 import scipy
@@ -61,24 +64,30 @@ default_probability = {Metric.Significant: 0.95,
 default_confidence = {Metric.Significant: 0.95,
                       Metric.Contributing: 0.95}
 
+InputType = TypeVar('InputType', np.ndarray, tuple, list)
+ReferenceType = TypeVar(
+    'ReferenceType', np.ndarray | tuple | list | float)
+_valid_input_types = (tuple, list, np.ndarray)
+_valid_reference_types = (float, tuple, list, np.ndarray)
 
-def assert_is_valid_method(method):
+
+def assert_is_valid_method(method: Method) -> None:
     if method not in Method:
         raise TypeError(
             f"provided invalid method {method}: must be one of {list(Method)}")
 
 
-def assert_is_probability(probability):
+def assert_is_probability(probability: float) -> None:
     if probability < 0 or probability > 1:
         raise TypeError("probability must be between 0 and 1")
 
 
-def assert_is_confidence(confidence):
+def assert_is_confidence(confidence: float) -> None:
     if confidence < 0 or confidence > 1:
         raise TypeError("confidence must be between 0 and 1")
 
 
-def change_base(sig, base):
+def change_base(sig: InputType, base: int) -> InputType:
     sig_power2 = np.power(2, sig)
 
     def to_base(x):
@@ -88,18 +97,17 @@ def change_base(sig, base):
     return x
 
 
-_valid_input_types = (tuple, list, np.ndarray)
-_valid_reference_types = (float, tuple, list, np.ndarray)
-
-
-def preprocess_inputs(array, reference):
+def preprocess_inputs(array: np.ndarray | tuple | list,
+                      reference: np.ndarray | tuple | list
+                      ) -> Tuple[np.ndarray, np.ndarray]:
 
     if scipy.sparse.issparse(array[0]):
         array = np.asanyarray([i.toarray() for i in array])
 
     if not isinstance(array, _valid_input_types):
         raise TypeError(f'Input array must be '
-                        f'one of the following types {_valid_input_types}')
+                        f'one of the following types '
+                        f'{_valid_input_types}')
 
     if not isinstance(array, np.ndarray):
         array = np.array(array)
@@ -109,7 +117,8 @@ def preprocess_inputs(array, reference):
             reference = reference.toarray()
         if not isinstance(reference, _valid_reference_types):
             raise TypeError(f'Reference must be '
-                            f'one of the following types {_valid_reference_types}')
+                            f'one of the following types '
+                            f'{_valid_reference_types}')
 
         if not isinstance(reference, np.ndarray):
             reference = np.array(reference)
@@ -117,7 +126,11 @@ def preprocess_inputs(array, reference):
     return (array, reference)
 
 
-def compute_z(array, reference, error, axis=0, shuffle_samples=False):
+def compute_z(array: InputType,
+              reference: ReferenceType,
+              error: Error,
+              axis: int = 0,
+              shuffle_samples: bool = False) -> InputType:
     r"""Compute Z, the distance between the random variable and the reference
 
     Compute Z, the distance between the random variable and the reference
@@ -178,13 +191,13 @@ def compute_z(array, reference, error, axis=0, shuffle_samples=False):
     else:
         raise TypeError("No comparison found for X and reference:")
 
-    if error == Error.Absolute:
+    if error == Error.Absolute or error.lower() == Error.Absolute.name.lower():
         z = x - y
-    elif error == Error.Relative:
+    elif error == Error.Relative or error.lower() == Error.Relative.name.lower():
         if np.any(y[y == 0]):
             warn_msg = ('error is set to relative and the reference '
                         '0 leading to NaN')
-            warnings.warn(warn)
+            warnings.warn(warn_msg)
         z = x / y - 1
     else:
         raise Exception(f"Unknown error {error}")
@@ -192,13 +205,13 @@ def compute_z(array, reference, error, axis=0, shuffle_samples=False):
     return z
 
 
-def significant_digits_cnh(array,
-                           reference,
-                           error,
-                           probability,
-                           confidence,
-                           axis=0,
-                           shuffle_samples=False):
+def significant_digits_cnh(array: InputType,
+                           reference: ReferenceType,
+                           error: Error,
+                           probability: float,
+                           confidence: float,
+                           axis: int = 0,
+                           shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits for Centered Normality Hypothesis (CNH)
 
     Parameters
@@ -236,7 +249,7 @@ def significant_digits_cnh(array,
 
     See Also
     --------
-    significantdigits.contributing_digits : Computes the contributing digits
+    significantdigits.contributing_digits_general : Computes the contributing digits in general case
     significantdigits.compute_z : Computes the error between random variable and reference
 
     Notes
@@ -265,37 +278,11 @@ def significant_digits_cnh(array,
     return significant
 
 
-def _probability_lower_bound_bernouilli(success,
-                                        sample_size,
-                                        confidence):
-    r'''Computes probability lower bound for Bernouilli process
-
-    Notes
-    -----
-    .. math::
-        p = \frac{s+2}{s+4} - F^{-1}(\frac{p+1}{2}) \sqrt{ \frac{(s+2)(n-s+2)}{n+4}^3  }
-    '''
-    s = success
-    n = sample_size
-    coef = scipy.stats.norm.ppf(confidence)
-
-    if s == n:
-        # Special case when having only successes
-        probability = 1 + np.log(1 - confidence) / n
-    else:
-        probability = (s + 2) / (n + 4) - coef * \
-            np.sqrt((s + 2) * (n - s + 2) / (n + 4)**3)
-
-    return probability
-
-
-def significant_digits_general(array,
-                               reference,
-                               error,
-                               return_probability,
-                               confidence,
-                               axis=0,
-                               shuffle_samples=False):
+def significant_digits_general(array: InputType,
+                               reference: ReferenceType,
+                               error: Error,
+                               axis: int = 0,
+                               shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits for unknown underlying distribution
 
     For the general case, the probability is not parametrizable but
@@ -320,12 +307,6 @@ def significant_digits_general(array,
     method : Method | str
         Name of the method for the underlying distribution hypothesis
         default: Method.CNH (Centered Normality Hypothesis)
-    return_probability : bool
-        Probability for the significant digits result
-        default: False
-    confidence : float
-        Confidence level for the probability lower bound estimation
-        default: 0.95
     shuffle_samples : bool
         If reference is None, the array is split in two and
         comparison is done between both pieces.
@@ -333,13 +314,12 @@ def significant_digits_general(array,
 
     Returns
     -------
-    out : ndarray | Tuple(ndarray, float)
+    out : ndarray
         array_like containing contributing digits
-        lower bound probability if `return_probability` is True
 
     See Also
     --------
-    significantdigits.contributing_digits : Computes the contributing digits
+    significantdigits.significant_digits_cnh : Computes the contributing digits under CNH
     significantdigits.compute_z : Computes the error between random variable and reference
 
     Notes
@@ -373,26 +353,18 @@ def significant_digits_general(array,
 
         significant[~z_mask] = k
 
-    output = None
-    if return_probability:
-        probability = _probability_lower_bound_bernouilli(
-            z.shape[0], z.shape[0], confidence)
-        output = (significant, probability)
-    else:
-        output = significant
-
-    return output
+    return significant
 
 
-def significant_digits(array,
-                       reference=None,
-                       axis=0,
-                       base=2,
-                       error=Error.Relative,
-                       method=Method.CNH,
-                       probability=default_probability[Metric.Significant],
-                       confidence=default_confidence[Metric.Significant],
-                       shuffle_samples=False):
+def significant_digits(array: InputType,
+                       reference: Optional[ReferenceType] = None,
+                       axis: int = 0,
+                       base: int = 2,
+                       error: Error = Error.Relative,
+                       method: Method = Method.CNH,
+                       probability: float = default_probability[Metric.Significant],
+                       confidence: float = default_confidence[Metric.Significant],
+                       shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits
 
     Parameters
@@ -462,8 +434,6 @@ def significant_digits(array,
         significant = significant_digits_general(array=array,
                                                  reference=reference,
                                                  error=error,
-                                                 probability=probability,
-                                                 confidence=confidence,
                                                  axis=axis,
                                                  shuffle_samples=shuffle_samples)
 
@@ -473,13 +443,13 @@ def significant_digits(array,
     return significant
 
 
-def contributing_digits_cnh(array,
-                            reference,
-                            error,
-                            probability,
-                            confidence,
-                            axis=0,
-                            shuffle_samples=False):
+def contributing_digits_cnh(array: InputType,
+                            reference: ReferenceType,
+                            error: Error,
+                            probability: float,
+                            confidence: float,
+                            axis: int = 0,
+                            shuffle_samples: bool = False) -> InputType:
     r'''Compute contributing digits for Centered Hypothesis Normality
 
     Parameters
@@ -515,7 +485,7 @@ def contributing_digits_cnh(array,
 
     See Also
     --------
-    significantdigits.significant_digits : Computes the significant digits
+    significantdigits.significant_general : Computes the significant digits for general case
     significantdigits.compute_z : Computes the error between random variable and reference
 
     Notes
@@ -545,14 +515,12 @@ def contributing_digits_cnh(array,
     return contributing
 
 
-def contributing_digits_general(array,
-                                reference,
-                                error,
-                                return_probability,
-                                probability,
-                                confidence,
-                                axis=0,
-                                shuffle_samples=False):
+def contributing_digits_general(array: InputType,
+                                reference: ReferenceType,
+                                error: Error,
+                                probability: float,
+                                axis: int = 0,
+                                shuffle_samples: bool = False) -> InputType:
     r'''Computes contributing digits for unknown underlying distribution
 
     This function computes with a certain probability the number of bits
@@ -577,12 +545,6 @@ def contributing_digits_general(array,
     probability : float
         Probability for the contributing digits result
         default: 0.51
-    return_probability : float
-        Return the estimate probability for the contributing digits result
-        default: False
-    confidence : 0.95
-        Confidence level for the probability lower bound estimation
-        default: 0.95
     shuffle_samples : bool
         If reference is None, the array is split in two and
         comparison is done between both pieces.
@@ -595,7 +557,7 @@ def contributing_digits_general(array,
 
     See Also
     --------
-    significantdigits.significant_digits : Computes the significant digits
+    significantdigits.significant_digits_cnh : Computes the significant digits under CNH
     significantdigits.compute_z : Computes the error between random variable and reference
 
     Notes
@@ -627,27 +589,18 @@ def contributing_digits_general(array,
         z_mask = z_mask & (_z > probability)
         contributing[z_mask] = k
 
-    output = None
-    if return_probability:
-        probability = _probability_lower_bound_bernouilli(
-            z.shape[0], z.shape[0], confidence)
-        output = (contributing, probability)
-    else:
-        output = contributing
-
-    return output
+    return contributing
 
 
-def contributing_digits(array,
-                        reference=None,
-                        axis=0,
-                        base=2,
-                        error=Error.Relative,
-                        method=Method.CNH,
-                        probability=default_probability[Metric.Contributing],
-                        return_probability=False,
-                        confidence=default_confidence[Metric.Contributing],
-                        shuffle_samples=False):
+def contributing_digits(array: InputType,
+                        reference: ReferenceType = None,
+                        axis: int = 0,
+                        base: int = 2,
+                        error: Error = Error.Relative,
+                        method: Method = Method.CNH,
+                        probability: float = default_probability[Metric.Contributing],
+                        confidence: float = default_confidence[Metric.Contributing],
+                        shuffle_samples: bool = False) -> InputType:
     r'''Compute contributing digits
 
 
@@ -673,13 +626,8 @@ def contributing_digits(array,
     probability : float
         Probability for the contributing digits result
         default: 0.51
-    return_probability : float
-        Return the estimate probability for the contributing digits result
-        (for General case only)
-        default: False
     confidence : float
         Confidence level for the contributing digits result
-        (for General case, it is used for the confidence of the lower bound probability)
         default: 0.95
     shuffle_samples : bool
         If reference is None, the array is split in two and
@@ -727,11 +675,83 @@ def contributing_digits(array,
                                                    error=error,
                                                    axis=axis,
                                                    probability=probability,
-                                                   return_probability=return_probability,
-                                                   confidence=confidence,
                                                    shuffle_samples=shuffle_samples)
 
     if base != 2:
         contributing = change_base(contributing, base)
 
     return contributing
+
+
+def probability_estimation_general(success: int,
+                                   trials: int,
+                                   confidence: float) -> float:
+    r'''Computes probability lower bound for Bernouilli process
+
+    This function computes the probability associated with metrics
+    computed in the general case (without assumption on the underlying
+    distribution). Indeed, in that case the probability is given by the
+    sample size with a certain confidence level.
+
+
+    Notes
+    -----
+    .. [1] Sohier, D., Castro, P. D. O., Févotte, F.,
+    Lathuilière, B., Petit, E., & Jamond, O. (2021).
+    Confidence intervals for stochastic arithmetic.
+    ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
+
+    .. math::
+        p = 1 + \frac{\log{ 1 - \alpha }}{n} if success=sample\_size
+        p = \frac{s+2}{s+4} - F^{-1}(\frac{p+1}{2}) \sqrt{ \frac{(s+2)(n-s+2)}{n+4}^3  } else
+    '''
+    s = success
+    n = trials
+    coef = scipy.stats.norm.ppf(confidence)
+
+    if s == n:
+        # Special case when having only successes
+        probability = 1 + np.log(1 - confidence) / n
+    else:
+        probability = (s + 2) / (n + 4) - coef * \
+            np.sqrt((s + 2) * (n - s + 2) / (n + 4)**3)
+
+    return probability
+
+
+def minimum_number_of_trials(probability: float, confidence: float) -> int:
+    r'''Computes the minimum number of trials to have probability and confidence
+
+    This function computes the minimal sample size required to have
+    metrics with a certain probability and confidence for the general case
+    (without assumption on the underlying distribution).
+
+    For example, if one wants significant digits with proabability p = 99%
+    and confidence (1 - alpha) = 95%, it requires at least 299 observations.
+
+    Parameters
+    ----------
+    probability : float
+        Probability
+    confidence : float
+        Confidence
+
+    Returns
+    -------
+    int
+        Minimal sample size to have given probability and confidence
+
+    Notes
+    -----
+    .. [1] Sohier, D., Castro, P. D. O., Févotte, F.,
+    Lathuilière, B., Petit, E., & Jamond, O. (2021).
+    Confidence intervals for stochastic arithmetic.
+    ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
+
+    .. math::
+        n = \lceil \frac{\ln{\alpha}}{\ln{p}}
+
+    '''
+    alpha = 1 - confidence
+    n = np.log(alpha) / np.log(probability)
+    return int(np.ceil(n))
