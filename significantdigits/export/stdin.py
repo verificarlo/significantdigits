@@ -6,10 +6,8 @@ import numpy as np
 class StdinParser(Parser):
 
     def parse(self, *args, **kwargs):
-        print(args, kwargs)
         values = kwargs.get('values', *args)
         dtype = kwargs.get('dtype', np.float64)
-        print(values, dtype)
         return np.asarray(values, dtype=dtype)
 
 

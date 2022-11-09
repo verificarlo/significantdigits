@@ -254,7 +254,7 @@ def compute_z(array: InputType,
     reference : Optional[ReferenceType]
         The reference to compare against
     error : Method.Error | str
-        The error function to compute Z
+        The error function to use to compute error between array and reference.
     axis : int, default=0
         The axis or axes along which compute Z
     shuflle_samples : bool, default=False
@@ -330,7 +330,7 @@ def significant_digits_cnh(array: InputType,
     axis: int
         Axis or axes along which the significant digits are computed
     error : Error | str
-        Name of the error function to use to compute Z
+        The error function to use to compute error between array and reference.
     probability : float
         Probability for the significant digits result
     confidence : float
@@ -399,7 +399,7 @@ def significant_digits_general(array: InputType,
     axis: int
         Axis or axes along which the significant digits are computed
     error : Error | str
-        Name of the error function to use to compute Z
+        The error function to use to compute error between array and reference.
     shuffle_samples : bool, optional=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
@@ -473,9 +473,9 @@ def significant_digits(array: InputType,
     axis: int, optional=0
         Axis or axes along which the significant digits are computed
     error : Error | str, optional=Error.Relative
-        Name of the error function to use to compute Z
+        The error function to use to compute error between array and reference.
     method : Method | str, optional=Method.CNH
-        Name of the method for the underlying distribution hypothesis
+        Method to use for the underlying distribution hypothesis
     probability : float, default=0.95
         Probability for the significant digits result
     confidence : float, default=0.95
@@ -554,7 +554,7 @@ def contributing_digits_cnh(array: InputType,
     axis: int
         Axis or axes along which the contributing digits are computed
     error : Error | str
-        Name of the error function to use to compute E(array, reference).
+        The error function to use to compute error between array and reference.
     probability : float
         Probability for the contributing digits result
     confidence : float
@@ -624,7 +624,7 @@ def contributing_digits_general(array: InputType,
     axis: int
         Axis or axes along which the contributing digits are computed
     error : Error | str
-        Name of the error function to use to compute Z.
+        The error function to use to compute error between array and reference.
     probability : float
         Probability for the contributing digits result
     shuffle_samples : bool, default=False
@@ -702,9 +702,9 @@ def contributing_digits(array: InputType,
         Axis or axes along which the contributing digits are computed
         default: None
     error : Error | str, default=Error.Relative
-        Name of the error function to use to compute E(array, reference).
+        Error function to use to compute error between array and reference.
     method : Method | str, default=Method.CNH
-        Name of the method for the underlying distribution hypothesis
+        Method to use for the underlying distribution hypothesis
     probability : float, default=0.51
         Probability for the contributing digits result
     confidence : float, default=0.95
@@ -767,15 +767,29 @@ def contributing_digits(array: InputType,
     return contributing
 
 
-def probability_estimation_general(success: int,
-                                   trials: int,
-                                   confidence: float) -> float:
-    r'''Computes probability lower bound for Bernouilli process
+def probability_estimation_bernoulli(success: int,
+                                     trials: int,
+                                     confidence: float) -> float:
+    r'''Computes probability lower bound for Bernoulli process
 
     This function computes the probability associated with metrics
     computed in the general case (without assumption on the underlying
     distribution). Indeed, in that case the probability is given by the
     sample size with a certain confidence level.
+
+    Parameters
+    ----------
+    success : int
+        Number of success for a Bernoulli experiment
+    trials : int
+        Number of trials for a Bernoulli experiment
+    confidence : float
+        Confidence level for the probability lower bound estimation
+
+    Returns
+    -------
+    float
+        The lower bound probability with `confidence` level to have `success` successes for `trials` trials
 
 
     Notes

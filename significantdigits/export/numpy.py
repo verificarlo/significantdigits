@@ -7,7 +7,7 @@ class NumpyParser(Parser):
 
     def parse(self, *args, **kwargs):
         filename = kwargs.get('filename', args[0])
-        return np.load(filename[0], allow_pickle=True)
+        return np.load(filename, allow_pickle=True)
 
 
 class NumpyExporter(Exporter):
