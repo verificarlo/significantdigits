@@ -47,8 +47,8 @@ the repository directly
 ### Inputs types
 
 Functions accept the following types for inputs:
-```
-    np.ndarray, tuple, list
+```python
+    InputType: np.ndarray | tuple | list
 ```
 Those types are accessible with the `get_input_type` function
 
