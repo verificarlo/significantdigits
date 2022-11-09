@@ -5,14 +5,17 @@ import numpy as np
 
 class NumpyParser(Parser):
 
-    def parse(self, filename):
-        return np.load(filename[0], allow_pickle=True)
+    def parse(self, *args, **kwargs):
+        filename = kwargs.get('filename', args[0])
+        return np.load(filename, allow_pickle=True)
 
 
 class NumpyExporter(Exporter):
 
-    def __init__(self, filename):
+    def __init__(self, *args, **kwargs):
+        filename = kwargs.get('filename', args[0])
         self.filename = filename
 
-    def export(self, values):
+    def export(self, *args, **kwargs):
+        values = kwargs.get('values', args)
         np.save(self.filename, values)

@@ -1,40 +1,47 @@
 import argparse
+import sys
+import ast
 
-import significantdigits.sigdigits as sigdigits
-
-input_formats = ['stdin', 'npy']
-output_formats = ['stdin', 'npy']
+import significantdigits
+from significantdigits.export import input_formats, input_types, output_formats
 
 
-def check_args(args):
+def safe_eval(s):
+    try:
+        return ast.literal_eval(s)
+    except Exception as e:
+        print(f'Error while parsing {s}')
+        print(e)
+        sys.exit(1)
 
-    args.metric = sigdigits._Metric_map[args.metric]
-    args.method = sigdigits._Method_map[args.method]
-    args.error = sigdigits._Error_map[args.error]
 
-    if args.probability is not None:
-        sigdigits.assert_is_probability(args.probability)
-    else:
-        args.probability = sigdigits.default_probability[args.metric]
+def process_args(args):
 
-    if args.confidence is not None:
-        sigdigits.assert_is_confidence(args.probability)
-    else:
-        args.confidence = sigdigits.default_confidence[args.metric]
+    args.metric = significantdigits.Metric.map[args.metric]
+    args.method = significantdigits.Method.map[args.method]
+    args.error = significantdigits.Error.map[args.error]
+    args.input_type = input_types[args.input_type]
 
     if args.input_format == 'stdin':
-        try:
-            args.inputs = list(map(float, args.inputs))
-        except ValueError as e:
-            print(f'Excepted numbers as inputs: {args.inputs}')
-            print(e)
-            raise SystemExit(2)
+        args.inputs = safe_eval(args.inputs)
+        if args.reference:
+            args.reference = safe_eval(args.reference)
+
+    if args.probability is not None:
+        significantdigits.assert_is_probability(args.probability)
+    else:
+        args.probability = significantdigits.default_probability[args.metric]
+
+    if args.confidence is not None:
+        significantdigits.assert_is_confidence(args.probability)
+    else:
+        args.confidence = significantdigits.default_confidence[args.metric]
 
     if args.probability:
-        sigdigits.assert_is_probability(args.probability)
+        significantdigits.assert_is_probability(args.probability)
 
     if args.confidence:
-        sigdigits.assert_is_confidence(args.confidence)
+        significantdigits.assert_is_confidence(args.confidence)
 
 
 def create_parser():
@@ -42,15 +49,18 @@ def create_parser():
                                      prog="significantdigits")
     parser.add_argument('--metric',
                         required=True,
-                        choices=sigdigits._Metric_names,
+                        type=str.lower,
+                        choices=significantdigits.Metric.names,
                         help='Metric to compute')
     parser.add_argument('--method',
-                        default=sigdigits.Method.CNH.name,
-                        choices=sigdigits._Method_names,
+                        type=str.lower,
+                        default=significantdigits.Method.CNH.name,
+                        choices=significantdigits.Method.names,
                         help='Method to use')
     parser.add_argument('--error',
-                        default=sigdigits.Error.Relative.name,
-                        choices=sigdigits._Error_names,
+                        type=str.lower,
+                        default=significantdigits.Error.Relative.name,
+                        choices=significantdigits.Error.names,
                         help='Error to use')
     parser.add_argument('--probability',
                         type=float,
@@ -65,20 +75,22 @@ def create_parser():
                         default=2,
                         type=int,
                         help='Base')
+    parser.add_argument('--input-type',
+                        choices=input_types.keys(),
+                        default='binary64',
+                        help='Input types')
     parser.add_argument('--input-format',
-                        choices=input_formats,
+                        choices=input_formats.keys(),
                         required=True,
                         help='Input format')
     parser.add_argument('-i', '--inputs',
-                        nargs='+',
                         required=True,
                         help='Inputs')
     parser.add_argument('-r', '--reference',
-                        nargs='+',
                         help='Reference. Use "mean" to use the mean value of the input')
     parser.add_argument('--output-format',
                         default='stdin',
-                        choices=output_formats,
+                        choices=output_formats.keys(),
                         help='Output format')
     parser.add_argument('-o', '--output',
                         default='stdin',
@@ -92,5 +104,5 @@ def parse_args(args=None):
         args = parser.parse_args(args)
     else:
         args = parser.parse_args()
-    check_args(args)
+    process_args(args)
     return args

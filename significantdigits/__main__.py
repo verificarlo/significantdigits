@@ -2,23 +2,30 @@
 
 import sys
 
-import numpy as np
 
-import significantdigits.export as export
-from significantdigits.sigdigits import *
-import significantdigits.args as argparse
-import significantdigits.stats as stats
+from significantdigits import export
+from significantdigits import (
+    significant_digits, contributing_digits, Metric)
+from significantdigits import args as argparse
+from significantdigits import stats
 
 
-def main(args):
-    parser = export.get_parser(args.input_format)()
-    exporter = export.get_exporter(args.output_format)(args.output)
+def main():
+    args = argparse.parse_args()
+    Parser = export.input_formats[args.input_format]
+    Exporter = export.output_formats[args.output_format]
 
-    inputs = parser.parse(args.inputs)
+    parser = Parser()
+    exporter = Exporter(args.output)
+
+    dtype = args.input_type
+
+    inputs = parser.parse(args.inputs, dtype=dtype)
+
     if args.reference:
-        reference = parser.parse(args.reference)
+        reference = parser.parse(args.reference, dtype=dtype)
     else:
-        reference = stats.mean(inputs, axis=args.axis)
+        reference = stats.mean(inputs, axis=args.axis, dtype=dtype)
 
     if args.metric == Metric.Significant:
         s = significant_digits(array=inputs,
@@ -46,5 +53,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = argparse.parse_args()
-    main(args)
+    main()

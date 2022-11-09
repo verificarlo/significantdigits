@@ -2,7 +2,7 @@ import pytest
 
 from significantdigits.args import parse_args
 
-default_inputs_args = ['--inputs', '1', '2', '3',
+default_inputs_args = ['--inputs', '[1,2,3]',
                        '--input-format', 'stdin']
 default_metric_args = ['--metric=Significant']
 
@@ -13,11 +13,11 @@ def test_args_inputs_stdin():
             [*default_metric_args, '--inputs ', '--input-format', 'stdin'])
     with pytest.raises(SystemExit):
         parse_args([*default_metric_args,
-                    '--inputs', '1', 'a', '3',
+                    '--inputs', '[1,a,3]',
                     '--input-format',
                     'stdin'])
     parse_args([*default_metric_args,
-                '--inputs', '1', '2.0', '3.0',
+                '--inputs', '[1,2.0,3.0]',
                 '--input-format', 'stdin'])
 
 

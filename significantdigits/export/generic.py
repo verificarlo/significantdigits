@@ -1,17 +1,14 @@
+from abc import ABC, abstractmethod
 
-class Parser:
+class Parser(ABC):
 
-    def __init__(self):
+    @abstractmethod
+    def parse(self, *args, **kwargs):
         pass
 
-    def parse(self):
-        pass
 
+class Exporter(ABC):
 
-class Exporter:
-
-    def __init__(self):
-        pass
-
-    def export(self):
+    @abstractmethod
+    def export(self, *args, **kwargs):
         pass
