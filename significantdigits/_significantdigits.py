@@ -24,6 +24,20 @@ class Metric(AutoName):
     Significant = auto()
     Contributing = auto()
 
+    @classmethod
+    def is_significant(cls, error):
+        if isinstance(error, cls):
+            return error == cls.Significant
+        if isinstance(error, str):
+            return error.lower() == cls.Significant.name
+
+    @classmethod
+    def is_contributing(cls, error):
+        if isinstance(error, cls):
+            return error == cls.Contributing
+        if isinstance(error, str):
+            return error.lower() == cls.Contributing.name
+
 
 class Method(AutoName):
     """
@@ -34,6 +48,20 @@ class Method(AutoName):
     """
     CNH = auto()
     General = auto()
+
+    @classmethod
+    def is_cnh(cls, error):
+        if isinstance(error, cls):
+            return error == cls.CNH
+        if isinstance(error, str):
+            return error.lower() == cls.CNH.name
+
+    @classmethod
+    def is_general(cls, error):
+        if isinstance(error, cls):
+            return error == cls.General
+        if isinstance(error, str):
+            return error.lower() == cls.General.name
 
 
 class Error(AutoName):
@@ -48,15 +76,36 @@ class Error(AutoName):
     Absolute = auto()
     Relative = auto()
 
+    @classmethod
+    def is_absolute(cls, error):
+        if isinstance(error, cls):
+            return error == cls.Absolute
+        if isinstance(error, str):
+            return error.lower() == cls.Absolute.name
 
-Metric.names = vars(Metric)['_member_names_']
-Metric.map = vars(Metric)['_value2member_map_']
+    @classmethod
+    def is_relative(cls, error):
+        if isinstance(error, cls):
+            return error == cls.Relative
+        if isinstance(error, str):
+            return error.lower() == cls.Relative.name
 
-Method.names = vars(Method)['_member_names_']
-Method.map = vars(Method)['_value2member_map_']
 
-Error.names = vars(Error)['_member_names_']
-Error.map = vars(Error)['_value2member_map_']
+def _lower_map(x):
+    if isinstance(x, list):
+        return list(map(str.lower, x))
+    if isinstance(x, dict):
+        return {k.lower(): v for k, v in x.items()}
+
+
+Metric.names = _lower_map(vars(Metric)['_member_names_'])
+Metric.map = _lower_map(vars(Metric)['_value2member_map_'])
+
+Method.names = _lower_map(vars(Method)['_member_names_'])
+Method.map = _lower_map(vars(Method)['_value2member_map_'])
+
+Error.names = _lower_map(vars(Error)['_member_names_'])
+Error.map = _lower_map(vars(Error)['_value2member_map_'])
 
 internal_dtype = np.dtype(np.float64)
 default_probability = {Metric.Significant: 0.95,
@@ -89,16 +138,28 @@ def get_reference_type():
     return ReferenceType.__constraints__
 
 
+def assert_is_valid_metric(metric: Metric | str) -> None:
+    if Metric.is_significant(metric) or Metric.is_contributing(metric):
+        return
+
+    raise TypeError(f"provided invalid metric {metric}: "
+                    f"must be one of {list(Metric)}")
+
+
 def assert_is_valid_method(method: Method | str) -> None:
-    if method not in Method or method not in Method.names:
-        raise TypeError(
-            f"provided invalid method {method}: must be one of {list(Method)}")
+    if Method.is_cnh(method) or Method.is_general(method):
+        return
+
+    raise TypeError(f"provided invalid method {method}: "
+                    f"must be one of {list(Method)}")
 
 
 def assert_is_valid_error(error: Error | str) -> None:
-    if error not in Error or error not in Error.names:
-        raise TypeError(
-            f"provided invalid error {error}: must be one of {list(Error)}")
+    if Error.is_absolute(error) or Error.is_relative(error):
+        return
+
+    raise TypeError(f"provided invalid error {error}: "
+                    f"must be one of {list(Error)}")
 
 
 def assert_is_probability(probability: float) -> None:
@@ -183,7 +244,7 @@ def compute_z(array: InputType,
         - X.ndim == Y.ndim
             X and Y have the same dimension
             It it the case when Y is a random variable
-        - X.ndim - 1 == Y.ndim
+        - X.ndim - 1 == Y.ndim or Y.ndim == 0
             Y is a scalar value
 
     Parameters
@@ -231,12 +292,15 @@ def compute_z(array: InputType,
     elif reference.ndim == array.ndim - 1:
         x = array
         y = reference
+    elif reference.ndim == 0:
+        x = array
+        y = reference
     else:
         raise TypeError("No comparison found for X and reference:")
 
-    if error == Error.Absolute or error.lower() == Error.Absolute.name.lower():
+    if Error.is_absolute(error):
         z = x - y
-    elif error == Error.Relative or error.lower() == Error.Relative.name.lower():
+    elif Error.is_relative(error):
         if np.any(y[y == 0]):
             warn_msg = ('error is set to relative and the reference '
                         '0 leading to NaN')

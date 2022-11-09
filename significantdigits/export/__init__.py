@@ -1,16 +1,14 @@
+import numpy as np
+
 import significantdigits.export.numpy as io_numpy
 import significantdigits.export.stdin as io_stdin
 
-_input_formats = dict(stdin=io_stdin.StdinParser,
-                      npy=io_numpy.NumpyParser)
+input_formats = dict(stdin=io_stdin.StdinParser,
+                     npy=io_numpy.NumpyParser)
 
-_output_formats = dict(stdin=io_stdin.StdinExporter,
-                       npy=io_numpy.NumpyExporter)
+output_formats = dict(stdin=io_stdin.StdinExporter,
+                      npy=io_numpy.NumpyExporter)
 
-
-def get_parser(input_format):
-    return _input_formats[input_format]
-
-
-def get_exporter(output_format):
-    return _output_formats[output_format]
+input_types = dict(binary16=np.float16,
+                   binary32=np.float32,
+                   binary64=np.float64)
