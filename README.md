@@ -26,7 +26,13 @@ or with the CLI interface assuming `X` is in `test.txt`:
 > significantdigits --metric significant -i "$(cat test.txt)" --input-format stdin --reference 1
 > (51.02329058847853,)
 ```
+If the reference is unknown, one can use the sample average:
 
+```python
+...
+>>> sig.significant_digits(X, reference=np.mean(X))
+>>> 51.02329058847853
+```
 ## Installation
 
 ```bash
