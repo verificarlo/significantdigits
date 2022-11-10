@@ -23,8 +23,8 @@ of a results sample with a given known reference:
 or with the CLI interface assuming `X` is in `test.txt`:
 
 ```bash
-    $significantdigits --metric significant -i "$(cat test.txt)" --input-format stdin --reference 1
-    (51.02329058847853,)
+> significantdigits --metric significant -i "$(cat test.txt)" --input-format stdin --reference 1
+> (51.02329058847853,)
 ```
 
 ## Installation
@@ -46,19 +46,19 @@ the repository directly
 
 ### Inputs types
 
-Functions accept the following types for inputs:
+Functions accept the following types for the inputs:
 ```python
     InputType: np.ndarray | tuple | list
 ```
-Those types are accessible with the `get_input_type` function
+Those types are accessible with the `get_input_type` function.
 
 ### Z computation
 
 Metric are computed using Z, the distance
 between the samples and the reference.
 They are four possible cases depending on the
-distance and the nature of the reference
-summarize in this table:
+distance and the nature of the reference that are
+summarized in this table:
 
 |                    | constant reference (x) | random variable reference (Y) |
 | ------------------ | ---------------------- | ----------------------------- |
@@ -107,8 +107,9 @@ compute_z(array: ~InputType, reference: Optional[~ReferenceType], error: signifi
 ### Methods
 
 Two methods exist for computing both significant and contributing digits
-depending on if the sample follow a Centered Normal distribution or not.
-You can pass the method to the function by using the `Method` enum provided by in package. Function also accept the name as a string
+depending on wether the sample follow a Centered Normal distribution or not.
+You can pass the method to the function by using the `Method` enum provided by the package. 
+The functions also accept the name as a string
 `"cnh"` for `Method.CNH` and `"general"` for `Method.General`.
 
 ```python
