@@ -22,7 +22,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "attrs==21.2.0",
     "iniconfig==1.1.1",
-    "numpy==1.21.3",
+    "numpy>=1.22.0",
     "packaging==21.2",
     "pluggy==1.0.0",
     "py==1.10.0",
