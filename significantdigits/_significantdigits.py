@@ -1,6 +1,6 @@
 
 from typing import TypeVar
-from typing import Tuple
+from typing import Tuple, Union
 import math
 import warnings
 from enum import Enum, auto
@@ -138,7 +138,7 @@ def get_reference_type():
     return ReferenceType.__constraints__
 
 
-def assert_is_valid_metric(metric: Metric | str) -> None:
+def assert_is_valid_metric(metric: Union[Metric, str]) -> None:
     if Metric.is_significant(metric) or Metric.is_contributing(metric):
         return
 
@@ -146,7 +146,7 @@ def assert_is_valid_metric(metric: Metric | str) -> None:
                     f"must be one of {list(Metric)}")
 
 
-def assert_is_valid_method(method: Method | str) -> None:
+def assert_is_valid_method(method: Union[Method, str]) -> None:
     if Method.is_cnh(method) or Method.is_general(method):
         return
 
@@ -154,7 +154,7 @@ def assert_is_valid_method(method: Method | str) -> None:
                     f"must be one of {list(Method)}")
 
 
-def assert_is_valid_error(error: Error | str) -> None:
+def assert_is_valid_error(error: Union[Error, str]) -> None:
     if Error.is_absolute(error) or Error.is_relative(error):
         return
 
@@ -196,8 +196,8 @@ def change_base(array: InputType, base: int) -> InputType:
     return x
 
 
-def preprocess_inputs(array: np.ndarray | tuple | list,
-                      reference: np.ndarray | tuple | list
+def preprocess_inputs(array: Union[np.ndarray, tuple, list],
+                      reference: Union[np.ndarray, tuple, list]
                       ) -> Tuple[np.ndarray, np.ndarray]:
 
     if scipy.sparse.issparse(array[0]):
@@ -227,7 +227,7 @@ def preprocess_inputs(array: np.ndarray | tuple | list,
 
 def compute_z(array: InputType,
               reference: Optional[ReferenceType],
-              error: Error | str,
+              error: Union[Error, str],
               axis: int,
               shuffle_samples: bool = False) -> InputType:
     r"""Compute Z, the distance between the random variable and the reference
@@ -315,7 +315,7 @@ def compute_z(array: InputType,
 def significant_digits_cnh(array: InputType,
                            reference: Optional[ReferenceType],
                            axis: int,
-                           error: Error | str,
+                           error: Union[Error, str],
                            probability: float,
                            confidence: float,
                            shuffle_samples: bool = False) -> InputType:
@@ -381,7 +381,7 @@ def significant_digits_cnh(array: InputType,
 def significant_digits_general(array: InputType,
                                reference: Optional[ReferenceType],
                                axis: int,
-                               error: Error | str,
+                               error: Union[Error, str],
                                shuffle_samples: bool = False) -> InputType:
     r'''Compute significant digits for unknown underlying distribution
 
@@ -455,8 +455,8 @@ def significant_digits(array: InputType,
                        reference: Optional[ReferenceType] = None,
                        axis: int = 0,
                        base: int = 2,
-                       error: str | Error = Error.Relative,
-                       method: str | Method = Method.CNH,
+                       error: Union[str, Error] = Error.Relative,
+                       method: Union[str, Method] = Method.CNH,
                        probability: float = default_probability[Metric.Significant],
                        confidence: float = default_confidence[Metric.Significant],
                        shuffle_samples: bool = False) -> InputType:
@@ -539,7 +539,7 @@ def significant_digits(array: InputType,
 def contributing_digits_cnh(array: InputType,
                             reference: Optional[ReferenceType],
                             axis: int,
-                            error: Error | str,
+                            error: Union[Error, str],
                             probability: float,
                             confidence: float,
                             shuffle_samples: bool = False) -> InputType:
@@ -606,7 +606,7 @@ def contributing_digits_cnh(array: InputType,
 def contributing_digits_general(array: InputType,
                                 reference: Optional[ReferenceType],
                                 axis: int,
-                                error: Error | str,
+                                error: Union[Error, str],
                                 probability: float,
                                 shuffle_samples: bool = False) -> InputType:
     r'''Computes contributing digits for unknown underlying distribution
@@ -680,8 +680,8 @@ def contributing_digits(array: InputType,
                         reference: Optional[ReferenceType] = None,
                         axis: int = 0,
                         base: int = 2,
-                        error: str | Error = Error.Relative,
-                        method: str | Method = Method.CNH,
+                        error: Union[str, Error] = Error.Relative,
+                        method: Union[str, Method] = Method.CNH,
                         probability: float = default_probability[Metric.Contributing],
                         confidence: float = default_confidence[Metric.Contributing],
                         shuffle_samples: bool = False) -> InputType:
