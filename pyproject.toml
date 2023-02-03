@@ -20,17 +20,17 @@ classifiers = [
 ]
 license = { file = "LICENSE" }
 dependencies = [
-    "attrs==21.2.0",
-    "iniconfig==1.1.1",
+    "attrs>=21.2.0",
+    "iniconfig>=1.1.1",
     "numpy>=1.22.0",
-    "packaging==21.2",
-    "pluggy==1.0.0",
-    "py==1.10.0",
-    "pyparsing==2.4.7",
-    "pytest==6.2.5",
-    "scipy==1.7.3",
-    "toml==0.10.2",
-    "icecream==2.1.3",
+    "packaging>=21.2",
+    "pluggy>=1.0.0",
+    "py>=1.10.0",
+    "pyparsing>=2.4.7",
+    "pytest>=6.2.5",
+    "scipy>=1.7.3",
+    "toml>=0.10.2",
+    "icecream>=2.1.3",
 ]
 
 [tool.hatch.build]
