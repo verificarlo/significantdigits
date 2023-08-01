@@ -327,6 +327,7 @@ def significant_digits_cnh(
     probability: float,
     confidence: float,
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Compute significant digits for Centered Normality Hypothesis (CNH)
 
@@ -348,6 +349,9 @@ def significant_digits_cnh(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
@@ -379,10 +383,11 @@ def significant_digits_cnh(
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
     significant = -np.log2(std) - delta_chn
+    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     if significant.ndim != 0:
-        significant[std0] = np.finfo(z.dtype).nmant - delta_chn
+        significant[std0] = max_bits - delta_chn
     elif std0:
-        significant = np.finfo(z.dtype).nmant - delta_chn
+        significant = max_bits - delta_chn
     return significant
 
 
@@ -392,6 +397,7 @@ def significant_digits_general(
     axis: int,
     error: Union[Error, str],
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Compute significant digits for unknown underlying distribution
 
@@ -414,6 +420,9 @@ def significant_digits_general(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
@@ -440,7 +449,7 @@ def significant_digits_general(
     z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
 
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
-    max_bits = np.finfo(z.dtype).nmant
+    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     significant = np.full(sample_shape, max_bits, dtype=np.float64)
     z_mask = np.full(sample_shape, False)
     for k in range(max_bits, -1, -1):
@@ -470,6 +479,7 @@ def significant_digits(
     probability: float = default_probability[Metric.Significant],
     confidence: float = default_confidence[Metric.Significant],
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Compute significant digits
 
@@ -495,6 +505,9 @@ def significant_digits(
         If reference is None, the array is split in two and \
         comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
@@ -534,6 +547,7 @@ def significant_digits(
             confidence=confidence,
             axis=axis,
             shuffle_samples=shuffle_samples,
+            dtype=dtype,
         )
 
     elif method == Method.General:
@@ -543,6 +557,7 @@ def significant_digits(
             error=error,
             axis=axis,
             shuffle_samples=shuffle_samples,
+            dtype=dtype,
         )
 
     if base != 2:
@@ -559,6 +574,7 @@ def contributing_digits_cnh(
     probability: float,
     confidence: float,
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Compute contributing digits for Centered Hypothesis Normality
 
@@ -580,6 +596,9 @@ def contributing_digits_cnh(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
@@ -614,10 +633,11 @@ def contributing_digits_cnh(
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
     contributing = -np.log2(std) - delta_chn
+    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     if contributing.ndim != 0:
-        contributing[std0] = np.finfo(z.dtype).nmant - delta_chn
+        contributing[std0] = max_bits - delta_chn
     elif std0:
-        contributing = np.finfo(z.dtype).nmant - delta_chn
+        contributing = max_bits - delta_chn
 
     return contributing
 
@@ -629,6 +649,7 @@ def contributing_digits_general(
     error: Union[Error, str],
     probability: float,
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Computes contributing digits for unknown underlying distribution
 
@@ -652,7 +673,9 @@ def contributing_digits_general(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
     Returns
     -------
     ndarray
@@ -682,7 +705,7 @@ def contributing_digits_general(
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     contributing = np.zeros(sample_shape)
     contributing = np.zeros([dim for i, dim in enumerate(z.shape) if i != axis])
-    max_bits = np.finfo(z.dtype).nmant
+    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     z_mask = np.full(sample_shape, fill_value=True)
 
     for k in range(1, max_bits + 1):
@@ -705,6 +728,7 @@ def contributing_digits(
     probability: float = default_probability[Metric.Contributing],
     confidence: float = default_confidence[Metric.Contributing],
     shuffle_samples: bool = False,
+    dtype: Optional[np.dtype] = None,
 ) -> InputType:
     r"""Compute contributing digits
 
@@ -734,7 +758,9 @@ def contributing_digits(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
     Returns
     -------
     ndarray
@@ -774,6 +800,7 @@ def contributing_digits(
             probability=probability,
             confidence=confidence,
             shuffle_samples=shuffle_samples,
+            dtype=dtype,
         )
 
     elif method == Method.General:
@@ -784,6 +811,7 @@ def contributing_digits(
             axis=axis,
             probability=probability,
             shuffle_samples=shuffle_samples,
+            dtype=dtype,
         )
 
     if base != 2:
@@ -814,7 +842,8 @@ def probability_estimation_bernoulli(
     Returns
     -------
     float
-        The lower bound probability with `confidence` level to have `success` successes for `trials` trials
+        The lower bound probability with `confidence` level to have `success`
+        successes for `trials` trials
 
 
     Notes
