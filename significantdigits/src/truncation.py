@@ -27,8 +27,7 @@ def truncate(x, n):
     return fp_trunc
 
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     x16 = np.float16(0.9995)
     print("Truncation for float16:", x16)
     for i in range(11):

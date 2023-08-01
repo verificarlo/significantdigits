@@ -174,3 +174,35 @@ class TestGaussian:
         x = load.load(self.filename)
         ref = self.reference(self.args)
         run_contributing_digits.run(self.filename, x, ref)
+
+
+class TestGaussianLarge:
+    filename = "parker_gaussian"
+    args = 1000
+
+    def turing_matrix(self, n):
+        t = np.eye(n)
+        t[:, -1] = np.array([2**i for i in range(n)])
+        return t
+
+    def reference(self, n):
+        return np.array([2**-i for i in range(n)])
+
+    def gaussian(self, n):
+        a = self.turing_matrix(n)
+        b = np.full(n, 1)
+        return scipy.linalg.solve(a, b)
+
+    def test_fuzzy(self, run_fuzzy, nsamples, save):
+        samples = run_fuzzy.run(nsamples, self.gaussian, self.args)
+        save.save(self.filename, samples)
+
+    def test_significant_digits(self, load, run_significant_digits):
+        x = load.load(self.filename)
+        ref = self.reference(self.args)
+        run_significant_digits.run(self.filename, x, ref)
+
+    def test_contributing_digits(self, load, run_contributing_digits):
+        x = load.load(self.filename)
+        ref = self.reference(self.args)
+        run_contributing_digits.run(self.filename, x, ref)
