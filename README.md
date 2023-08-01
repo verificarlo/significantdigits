@@ -39,7 +39,7 @@ If the reference is unknown, one can use the sample average:
     python3 -m pip install -U significantdigits
 ```
 
-or if you want the lastest version of the code, you can install from
+or if you want the lastest version of the code, you can install **from**
 the repository directly
 
 ```bash
@@ -166,6 +166,9 @@ significant_digits(array: ~InputType,
         If reference is None, the array is split in two and \
         comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
@@ -206,6 +209,9 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
+    dtype : np.dtype, default=None
+        Numerical type used for computing contributing digits
+        Widest format between array and reference is taken if no supplied.
 
     Returns
     -------

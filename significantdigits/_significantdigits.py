@@ -1,13 +1,11 @@
-from typing import TypeVar
-from typing import Tuple, Union
-import math
-import warnings
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Tuple, TypeVar, Union
 
 import numpy as np
 import scipy
 import scipy.stats
+
+from icecream import ic
 
 
 class AutoName(Enum):
@@ -175,7 +173,7 @@ def assert_is_confidence(confidence: float) -> None:
         raise TypeError("confidence must be between 0 and 1")
 
 
-def change_base(array: InputType, base: int) -> InputType:
+def change_basis(array: InputType, base: int) -> InputType:
     """Changes basis from binary to `base` representation
 
     Parameters
@@ -190,14 +188,8 @@ def change_base(array: InputType, base: int) -> InputType:
     np.ndarray
         Array convert to base `base`
     """
-    sig_power2 = np.power(2, array)
-
-    def to_base(x):
-        return math.log(x, base)
-
-    np_to_base = np.frompyfunc(to_base, 1, 1)
-    x = np_to_base(sig_power2)
-    return x
+    array_masked = np.ma.array(2**array, mask=array <= 0)
+    return np.emath.logn(base, array_masked)
 
 
 def preprocess_inputs(
@@ -306,6 +298,9 @@ def compute_z(
     else:
         raise TypeError("No comparison found for X and reference:")
 
+    x = np.array(x)
+    y = np.array(y)
+
     if Error.is_absolute(error):
         z = x - y
     elif Error.is_relative(error):
@@ -315,7 +310,7 @@ def compute_z(
         z = x / y - 1
     else:
         raise Exception(f"Unknown error {error}")
-
+    print("z", type(z))
     return z
 
 
@@ -378,16 +373,15 @@ def significant_digits_cnh(
     z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[axis]
     std = np.std(z, axis=axis, dtype=internal_dtype)
-    std0 = np.ma.masked_array(std == 0)
+    std0 = np.ma.array(std, mask=std == 0)
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
-    significant = -np.log2(std) - delta_chn
+    significant = -1 * (np.ma.log2(std0) + delta_chn)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    if significant.ndim != 0:
-        significant[std0] = max_bits - delta_chn
-    elif std0:
-        significant = max_bits - delta_chn
+    if significant.ndim == 0:
+        significant = np.ma.array(significant, mask=std0.mask)
+    significant = significant.filled(fill_value=max_bits - delta_chn)
     return significant
 
 
@@ -450,21 +444,47 @@ def significant_digits_general(
 
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    significant = np.full(sample_shape, max_bits, dtype=np.float64)
-    z_mask = np.full(sample_shape, False)
+    significant = np.full(shape=sample_shape, fill_value=max_bits, dtype=np.float64)
+    z_mask = np.ma.array(np.zeros(sample_shape), mask=False)
+
+    ic(z)
+    zz = np.ma.array(np.abs(z), mask=np.abs(z) <= 0, fill_value=max_bits)
+    ic(zz)
+    z2 = np.ma.log2(zz)
+
     for k in range(max_bits, -1, -1):
-        pow2minusk = np.power(2, -np.float64(k))
-        successess = np.abs(z) <= pow2minusk
-        _z = np.all(successess, axis=axis)
-        if z.ndim == 0 and _z:
-            significant = k
-            break
+        # # successess = z2 <= -k
+        fails = z2 > -k
+        ic("----")
+        ic(k)
+        ic(fails)
+        ic(np.ma.all(fails, axis=axis))
+        ic(z_mask.mask)
+        ic(z_mask.mask | np.ma.any(fails, axis=axis))
+        z_mask.mask |= np.ma.any(fails, axis=axis)
+        ic(z_mask)
+        significant[~z_mask.mask] = k
+        ic(significant)
 
-        z_mask = np.ma.masked_array(data=_z, mask=_z)
-        if np.all(_z):
-            break
+        # _z = np.logical_or(successess, z_mask, axis=axis)
+        # significant[successess]
 
-        significant[~z_mask] = k
+    # Compute successes
+
+    # for k in range(max_bits, -1, -1):
+    #     # pow2minusk = np.power(2, -np.float64(k))
+    #     # successess = np.abs(z) <= pow2minusk
+    #     successess = z2 <= -k
+    #     _z = np.all(successess, axis=axis)
+    #     if z.ndim == 0 and _z:
+    #         significant = k
+    #         break
+
+    #     z_mask = np.ma.array(data=_z, mask=_z)
+    #     z_mask &= successess
+    #     if np.all(_z):
+    #         break
+    #     significant[np.logical_not(z_mask)] = k
 
     return significant
 
@@ -561,7 +581,7 @@ def significant_digits(
         )
 
     if base != 2:
-        significant = change_base(significant, base)
+        significant = change_basis(significant, base)
 
     return significant
 
@@ -625,20 +645,16 @@ def contributing_digits_cnh(
     z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[axis]
     std = np.std(z, axis=axis, dtype=internal_dtype)
-    std0 = np.ma.masked_array(std == 0)
+    std0 = np.ma.masked_array(std, mask=std == 0)
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     delta_chn = (
         0.5 * np.log2((nb_samples - 1) / chi2)
         + np.log2(probability - 0.5)
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
-    contributing = -np.log2(std) - delta_chn
+    contributing = -np.ma.log2(std0) - delta_chn
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    if contributing.ndim != 0:
-        contributing[std0] = max_bits - delta_chn
-    elif std0:
-        contributing = max_bits - delta_chn
-
+    contributing = contributing.filled(fill_value=max_bits - delta_chn)
     return contributing
 
 
@@ -815,7 +831,7 @@ def contributing_digits(
         )
 
     if base != 2:
-        contributing = change_base(contributing, base)
+        contributing = change_basis(contributing, base)
 
     return contributing
 
