@@ -1,7 +1,7 @@
-# significantdigits package - v0.1.2
+# significantdigits package - v0.1.3
 
 Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
-This package is also inspired from the [Jupyter notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
+This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
 
 ## Getting started
 
@@ -39,8 +39,7 @@ If the reference is unknown, one can use the sample average:
     python3 -m pip install -U significantdigits
 ```
 
-or if you want the lastest version of the code, you can install **from**
-the repository directly
+or if you want the latest version of the code, you can install it **from** the repository directly
 
 ```bash
     python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.git
@@ -52,19 +51,15 @@ the repository directly
 
 ### Inputs types
 
-Functions accept the following types for the inputs:
+Functions accept the following types of inputs:
 ```python
     InputType: np.ndarray | tuple | list
 ```
 Those types are accessible with the `get_input_type` function.
 
 ### Z computation
-
-Metric are computed using Z, the distance
-between the samples and the reference.
-They are four possible cases depending on the
-distance and the nature of the reference that are
-summarized in this table:
+Metrics are computed using Z, the distance between the samples and the reference.
+They are four possible cases depending on the distance and the nature of the reference that is summarized in this table:
 
 |                    | constant reference (x) | random variable reference (Y) |
 | ------------------ | ---------------------- | ----------------------------- |
@@ -112,8 +107,7 @@ compute_z(array: ~InputType, reference: Optional[~ReferenceType], error: signifi
 
 ### Methods
 
-Two methods exist for computing both significant and contributing digits
-depending on wether the sample follow a Centered Normal distribution or not.
+Two methods exist for computing both significant and contributing digits depending on whether the sample follows a Centered Normal distribution or not.
 You can pass the method to the function by using the `Method` enum provided by the package. 
 The functions also accept the name as a string
 `"cnh"` for `Method.CNH` and `"general"` for `Method.General`.
@@ -219,7 +213,7 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
         array_like containing contributing digits
 
 ```
-### Utils functions
+### Utils function
 
 These are utility functions for the general case.
 
@@ -228,7 +222,7 @@ allows having an estimation
 on the lower bound probability given the sample size.
 
 `minimum_number_of_trials` gives the minimal sample size
-required to reach requested `probability` and `confidence`.
+required to reach the requested `probability` and `confidence`.
 
 ```python
 probability_estimation_general(success: int, trials: int, confidence: float) -> float
@@ -287,5 +281,5 @@ under the Apache License v2.0 with LLVM Exceptions.
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception.
 See https://llvm.org/LICENSE.txt for license information.
 
-Copyright (c) 2020-2022 Verificarlo Contributors
+Copyright (c) 2020-2023 Verificarlo Contributors
 
