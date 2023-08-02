@@ -1,11 +1,10 @@
+import warnings
 from enum import Enum, auto
 from typing import Optional, Tuple, TypeVar, Union
 
 import numpy as np
 import scipy
 import scipy.stats
-
-from icecream import ic
 
 
 class AutoName(Enum):
