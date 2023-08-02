@@ -188,8 +188,9 @@ def change_basis(array: InputType, base: int) -> InputType:
     np.ndarray
         Array convert to base `base`
     """
-    array_masked = np.ma.array(2**array, mask=array <= 0)
-    return np.emath.logn(base, array_masked)
+    pow2 = np.power(2, array, dtype=np.float64)
+    array_masked = np.ma.array(pow2, mask=array <= 0)
+    return np.emath.logn(base, array_masked).astype(np.int8)
 
 
 def preprocess_inputs(
@@ -310,7 +311,6 @@ def compute_z(
         z = x / y - 1
     else:
         raise Exception(f"Unknown error {error}")
-    print("z", type(z))
     return z
 
 
@@ -444,49 +444,25 @@ def significant_digits_general(
 
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    significant = np.full(shape=sample_shape, fill_value=max_bits, dtype=np.float64)
-    z_mask = np.ma.array(np.zeros(sample_shape), mask=False)
-
-    ic(z)
+    significant = np.ma.MaskedArray(
+        data=np.full(shape=sample_shape, fill_value=0, dtype=np.int8), mask=False
+    )
     zz = np.ma.array(np.abs(z), mask=np.abs(z) <= 0, fill_value=max_bits)
-    ic(zz)
+    if np.all(zz.mask):
+        return zz.filled()
+
     z2 = np.ma.log2(zz)
 
-    for k in range(max_bits, -1, -1):
-        # # successess = z2 <= -k
-        fails = z2 > -k
-        ic("----")
-        ic(k)
-        ic(fails)
-        ic(np.ma.all(fails, axis=axis))
-        ic(z_mask.mask)
-        ic(z_mask.mask | np.ma.any(fails, axis=axis))
-        z_mask.mask |= np.ma.any(fails, axis=axis)
-        ic(z_mask)
-        significant[~z_mask.mask] = k
-        ic(significant)
-
-        # _z = np.logical_or(successess, z_mask, axis=axis)
-        # significant[successess]
-
     # Compute successes
+    for k in range(0, max_bits + 1):
+        # min(bool) <=> logical and
+        successes = np.ma.min(z2 <= -k, axis=axis)
+        significant.mask |= np.ma.logical_not(successes)
+        significant[np.logical_not(significant.mask)] = k
+        if np.all(significant.mask):
+            break
 
-    # for k in range(max_bits, -1, -1):
-    #     # pow2minusk = np.power(2, -np.float64(k))
-    #     # successess = np.abs(z) <= pow2minusk
-    #     successess = z2 <= -k
-    #     _z = np.all(successess, axis=axis)
-    #     if z.ndim == 0 and _z:
-    #         significant = k
-    #         break
-
-    #     z_mask = np.ma.array(data=_z, mask=_z)
-    #     z_mask &= successess
-    #     if np.all(_z):
-    #         break
-    #     significant[np.logical_not(z_mask)] = k
-
-    return significant
+    return significant.data
 
 
 def significant_digits(
@@ -717,21 +693,29 @@ def contributing_digits_general(
     """
 
     z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
-    nb_samples = z.shape[axis]
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
-    contributing = np.zeros(sample_shape)
-    contributing = np.zeros([dim for i, dim in enumerate(z.shape) if i != axis])
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    z_mask = np.full(sample_shape, fill_value=True)
+    contributing = np.ma.MaskedArray(
+        data=np.full(shape=sample_shape, fill_value=1, dtype=np.int8), mask=False
+    )
 
     for k in range(1, max_bits + 1):
-        pow2k = np.power(2, k)
-        successes = np.floor(pow2k * np.abs(z)) % 2 == 0
-        _z = np.sum(successes, axis=axis) / nb_samples
-        z_mask = z_mask & (_z > probability)
-        contributing[z_mask] = k
+        # scale = ldexp(x,n) = x * 2^n
+        # floor(scale) & 1 : returns 1 if scale is even
+        # taking the max to check if at least one result is even
+        # Get the negation to have success as boolean
+        successes = np.logical_not(
+            np.max(
+                np.bitwise_and(np.floor(np.abs(np.ldexp(z, k))).astype(np.int64), 1),
+                axis=axis,
+            )
+        )
+        contributing.mask |= np.ma.logical_not(successes)
+        contributing[np.logical_not(contributing.mask)] = k
+        if np.all(contributing.mask):
+            break
 
-    return contributing
+    return contributing.data
 
 
 def contributing_digits(
