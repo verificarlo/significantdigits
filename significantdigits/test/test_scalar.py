@@ -6,7 +6,7 @@ from significantdigits.test.utils import Setup
 setup = Setup()
 
 
-class TestScaler:
+class TestScalar:
     """Test scalar value"""
 
     filename = "scalar"
@@ -32,3 +32,16 @@ class TestScaler:
         x = load.load(self.filename)
         ref = 1
         run_contributing_digits.run(self.filename, x, ref)
+
+
+class TestScalarIdentical(TestScalar):
+    """Test identical result"""
+
+    filename = "scalar_identical"
+    n = 100
+    a = np.ones(n)
+
+    args = (a,)
+
+    def noise(self, a):
+        return a
