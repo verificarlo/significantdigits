@@ -1,6 +1,6 @@
-# significantdigits package - v0.1.3
+# significantdigits package - v0.2.0
 
-Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
+Compute the number of significant digits basis on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
 
 ## Getting started
@@ -131,7 +131,7 @@ class Method(AutoName):
 ```python
 significant_digits(array: ~InputType,
                    reference: Optional[~ReferenceType] = None,
-                   axis: int = 0, base: int = 2,
+                   axis: int = 0, basis: int = 2,
                    error: str | significantdigits._significantdi
     Compute significant digits
 
@@ -144,10 +144,10 @@ significant_digits(array: ~InputType,
         Element to compute
     reference: Optional[ReferenceType], optional=None
         Reference for comparing the array
-    base: int, optional=2
-        Base in which represent the significant digits
     axis: int, optional=0
         Axis or axes along which the significant digits are computed
+    basis: int, optional=2
+        Basis in which represent the significant digits
     error : Error | str, optional=Error.Relative
         Error function to use to compute error between array and reference.
     method : Method | str, optional=Method.CNH
@@ -161,20 +161,20 @@ significant_digits(array: ~InputType,
         comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
     dtype : np.dtype, default=None
-        Numerical type used for computing contributing digits
+        Numerical type used for computing significant digits
         Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
     ndarray
-        array_like containing contributing digits
+        array_like containing significant digits
 
 ```
 
 ### Contributing digits
 
 ```python
-contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = None, axis: int = 0, base: int = 2, error: str | significantdigits._significantdigits.Error = <Error.Re$
+contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = None, axis: int = 0, basis: int = 2, error: str | significantdigits._significantdigits.Error = <Error.Re$
     Compute contributing digits
 
 
@@ -191,6 +191,8 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
     axis: int, default=0
         Axis or axes along which the contributing digits are computed
         default: None
+    basis: int, optional=2
+        basis in which represent the contributing digits
     error : Error | str, default=Error.Relative
         Error function to use to compute error between array and reference.
     method : Method | str, default=Method.CNH

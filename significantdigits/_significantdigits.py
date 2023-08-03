@@ -7,6 +7,10 @@ import scipy
 import scipy.stats
 
 
+class SignificantDigitsException(Exception):
+    pass
+
+
 class AutoName(Enum):
     def _generate_next_value_(name, start, count, last_values):
         return name
@@ -172,8 +176,8 @@ def assert_is_confidence(confidence: float) -> None:
         raise TypeError("confidence must be between 0 and 1")
 
 
-def change_basis(array: InputType, base: int) -> InputType:
-    """Changes basis from binary to `base` representation
+def change_basis(array: InputType, basis: int) -> InputType:
+    """Changes basis from binary to `basis` representation
 
     Parameters
     ----------
@@ -185,11 +189,11 @@ def change_basis(array: InputType, base: int) -> InputType:
     Returns
     -------
     np.ndarray
-        Array convert to base `base`
+        Array convert to basis `basis`
     """
     pow2 = np.power(2, array, dtype=np.float64)
     array_masked = np.ma.array(pow2, mask=array <= 0)
-    return np.emath.logn(base, array_masked).astype(np.int8)
+    return np.emath.logn(basis, array_masked)
 
 
 def preprocess_inputs(
@@ -198,11 +202,9 @@ def preprocess_inputs(
     if scipy.sparse.issparse(array[0]):
         array = np.asanyarray([i.toarray() for i in array])
 
-    if not isinstance(array, InputType.__constraints__):
+    if not isinstance(array, get_input_type()):
         raise TypeError(
-            f"Input array must be "
-            f"one of the following types "
-            f"{InputType.__constraints__}"
+            f"Input array must be " f"one of the following types " f"{get_input_type()}"
         )
 
     if not isinstance(array, np.ndarray):
@@ -211,11 +213,11 @@ def preprocess_inputs(
     if reference is not None:
         if scipy.sparse.issparse(reference):
             reference = reference.toarray()
-        if not isinstance(reference, ReferenceType.__constraints__):
+        if not isinstance(reference, get_reference_type()):
             raise TypeError(
                 f"Reference must be "
                 f"one of the following types "
-                f"{ReferenceType.__constraints__}"
+                f"{get_reference_type()}"
             )
 
         if not isinstance(reference, np.ndarray):
@@ -277,8 +279,8 @@ def compute_z(
 
     if reference is None:
         if nb_samples % 2 != 0:
-            error_msg = ("Number of samples must be ", "a multiple of 2")
-            raise Exception(error_msg)
+            error_msg = "Number of samples must be a multiple of 2"
+            raise SignificantDigitsException(error_msg)
         nb_samples /= 2
         if shuffle_samples:
             np.random.shuffle(array)
@@ -305,11 +307,11 @@ def compute_z(
         z = x - y
     elif Error.is_relative(error):
         if np.any(y[y == 0]):
-            warn_msg = "error is set to relative and the reference " "0 leading to NaN"
+            warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
         z = x / y - 1
     else:
-        raise Exception(f"Unknown error {error}")
+        raise SignificantDigitsException(f"Unknown error {error}")
     return z
 
 
@@ -344,13 +346,13 @@ def significant_digits_cnh(
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
     dtype : np.dtype, default=None
-        Numerical type used for computing contributing digits
-        Widest format between array and reference is taken if no supplied.
+        Numerical type used for computing significant digits
+        Widest format between array and reference is taken if not supplied.
 
     Returns
     -------
     ndarray
-        array_like containing contributing digits
+        array_like containing significant digits
 
     See Also
     --------
@@ -376,7 +378,7 @@ def significant_digits_cnh(
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
-    significant = -1 * (np.ma.log2(std0) + delta_chn)
+    significant = -np.ma.log2(std0) - delta_chn
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     if significant.ndim == 0:
         significant = np.ma.array(significant, mask=std0.mask)
@@ -414,17 +416,17 @@ def significant_digits_general(
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
     dtype : np.dtype, default=None
-        Numerical type used for computing contributing digits
-        Widest format between array and reference is taken if no supplied.
+        Numerical type used for computing significant digits
+        Widest format between array and reference is taken if not supplied.
 
     Returns
     -------
     out : ndarray
-        array_like containing contributing digits
+        array_like containing significant digits
 
     See Also
     --------
-    significantdigits.significant_digits_cnh : Computes the contributing digits under CNH
+    significantdigits.significant_digits_cnh : Computes the significant digits under CNH
     significantdigits.compute_z : Computes the error between random variable and reference
     significantdigits.get_input_type : get InputType types
     significantdigits.get_output_type : get ReferenceType types
@@ -440,7 +442,6 @@ def significant_digits_general(
         s = max{k \in [1,mant], st \forall i \in [1,n], |Z_i| <= 2^{-k}}
     """
     z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
-
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     significant = np.ma.MaskedArray(
@@ -468,7 +469,7 @@ def significant_digits(
     array: InputType,
     reference: Optional[ReferenceType] = None,
     axis: int = 0,
-    base: int = 2,
+    basis: int = 2,
     error: Union[str, Error] = Error.Relative,
     method: Union[str, Method] = Method.CNH,
     probability: float = default_probability[Metric.Significant],
@@ -484,10 +485,10 @@ def significant_digits(
         Element to compute
     reference: Optional[ReferenceType], optional=None
         Reference for comparing the array
-    base: int, optional=2
-        Base in which represent the significant digits
     axis: int, optional=0
         Axis or axes along which the significant digits are computed
+    basis: int, optional=2
+        basis in which represent the significant digits
     error : Error | str, optional=Error.Relative
         The error function to use to compute error between array and reference.
     method : Method | str, optional=Method.CNH
@@ -501,13 +502,13 @@ def significant_digits(
         comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
     dtype : np.dtype, default=None
-        Numerical type used for computing contributing digits
+        Numerical type used for computing significant digits
         Widest format between array and reference is taken if no supplied.
 
     Returns
     -------
     ndarray
-        array_like containing contributing digits
+        array_like containing significant digits
 
     See Also
     --------
@@ -555,8 +556,8 @@ def significant_digits(
             dtype=dtype,
         )
 
-    if base != 2:
-        significant = change_basis(significant, base)
+    if basis != 2:
+        significant = change_basis(significant, basis)
 
     return significant
 
@@ -700,8 +701,8 @@ def contributing_digits_general(
 
     for k in range(1, max_bits + 1):
         # scale = ldexp(x,n) = x * 2^n
-        # floor(scale) & 1 : returns 1 if scale is even
-        # taking the max to check if at least one result is even
+        # floor(scale) & 1 : returns 1 if scale is odd
+        # taking the max to check if at least one result is odd
         # Get the negation to have success as boolean
         successes = np.logical_not(
             np.max(
@@ -721,7 +722,7 @@ def contributing_digits(
     array: InputType,
     reference: Optional[ReferenceType] = None,
     axis: int = 0,
-    base: int = 2,
+    basis: int = 2,
     error: Union[str, Error] = Error.Relative,
     method: Union[str, Method] = Method.CNH,
     probability: float = default_probability[Metric.Contributing],
@@ -745,6 +746,8 @@ def contributing_digits(
     axis: int, default=0
         Axis or axes along which the contributing digits are computed
         default: None
+    basis: int, optional=2
+        basis in which represent the contributing digits
     error : Error | str, default=Error.Relative
         Error function to use to compute error between array and reference.
     method : Method | str, default=Method.CNH
@@ -813,8 +816,8 @@ def contributing_digits(
             dtype=dtype,
         )
 
-    if base != 2:
-        contributing = change_basis(contributing, base)
+    if basis != 2:
+        contributing = change_basis(contributing, basis)
 
     return contributing
 
