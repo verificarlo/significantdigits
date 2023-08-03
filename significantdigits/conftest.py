@@ -42,7 +42,7 @@ class RunMetricDigitsTest:
     def __init__(self, metric):
         self.setup = Setup()
         self.metric = self.check_metric(metric)
-        self.bases = [2, 10]
+        self.basiss = [2, 10]
         self.methods = significantdigits.Method
         self.errors = significantdigits.Error
         self.writer = None
@@ -59,14 +59,14 @@ class RunMetricDigitsTest:
             )
             sys.exit(1)
 
-    def compute_significant_digits(self, x, ref, error, method, base):
+    def compute_significant_digits(self, x, ref, error, method, basis):
         return significantdigits.significant_digits(
-            x, ref, error=error, method=method, base=base
+            x, ref, error=error, method=method, basis=basis
         )
 
-    def compute_contributing_digits(self, x, ref, error, method, base):
+    def compute_contributing_digits(self, x, ref, error, method, basis):
         return significantdigits.contributing_digits(
-            x, ref, error=error, method=method, base=base
+            x, ref, error=error, method=method, basis=basis
         )
 
     def compute_metric(self, *args, **kwargs):
@@ -75,20 +75,20 @@ class RunMetricDigitsTest:
         else:
             return self.compute_contributing_digits(*args, **kwargs)
 
-    def save_result(self, metric, error, method, base):
-        result = {"Method": method, "Error": error, "Base": base, "Metric": metric}
+    def save_result(self, metric, error, method, basis):
+        result = {"Method": method, "Error": error, "Basis": basis, "Metric": metric}
         self.writer.writerow(result.values())
 
     def run(self, output, x, ref):
-        header = ["Method", "Error", "Base", self.metric.capitalize()]
+        header = ["Method", "Error", "Basis", self.metric.capitalize()]
         filename = self.setup.get_report_path(output)
         with open(filename, "a", encoding="utf-8") as fo:
             self.writer = csv.writer(fo)
             self.writer.writerow(header)
-            configurations = itertools.product(self.bases, self.methods, self.errors)
-            for base, method, error in configurations:
-                metric = self.compute_metric(x, ref, error, method, base)
-                self.save_result(metric, error, method, base)
+            configurations = itertools.product(self.basiss, self.methods, self.errors)
+            for basis, method, error in configurations:
+                metric = self.compute_metric(x, ref, error, method, basis)
+                self.save_result(metric, error, method, basis)
 
 
 def pytest_addoption(parser):

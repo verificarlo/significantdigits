@@ -16,7 +16,7 @@ class TestScalar:
     args = (a,)
 
     def noise(self, a):
-        eps = setup.rng.uniform(-(10**-14), 10**-14, size=a.size)
+        eps = setup.rng.uniform(-(2**-50), 2**-50, size=a.size)
         return a + eps
 
     def test_fuzzy(self, run_fuzzy, nsamples, save):
