@@ -2,7 +2,13 @@ import argparse
 import sys
 import ast
 
-import significantdigits
+import significantdigits as sd
+from significantdigits._significantdigits import (
+    _assert_is_confidence,
+    _assert_is_probability,
+    _default_confidence,
+    _default_probability,
+)
 from significantdigits.export import input_formats, input_types, output_formats
 
 
@@ -16,9 +22,9 @@ def safe_eval(s):
 
 
 def process_args(args):
-    args.metric = significantdigits.Metric.map[args.metric]
-    args.method = significantdigits.Method.map[args.method]
-    args.error = significantdigits.Error.map[args.error]
+    args.metric = sd.Metric.map[args.metric]
+    args.method = sd.Method.map[args.method]
+    args.error = sd.Error.map[args.error]
     args.input_type = input_types[args.input_type]
 
     if args.input_format == "stdin":
@@ -27,20 +33,20 @@ def process_args(args):
             args.reference = safe_eval(args.reference)
 
     if args.probability is not None:
-        significantdigits.assert_is_probability(args.probability)
+        _assert_is_probability(args.probability)
     else:
-        args.probability = significantdigits.default_probability[args.metric]
+        args.probability = _default_probability[args.metric]
 
     if args.confidence is not None:
-        significantdigits.assert_is_confidence(args.probability)
+        _assert_is_confidence(args.probability)
     else:
-        args.confidence = significantdigits.default_confidence[args.metric]
+        args.confidence = _default_confidence[args.metric]
 
     if args.probability:
-        significantdigits.assert_is_probability(args.probability)
+        _assert_is_probability(args.probability)
 
     if args.confidence:
-        significantdigits.assert_is_confidence(args.confidence)
+        _assert_is_confidence(args.confidence)
 
 
 def create_parser():
@@ -51,21 +57,21 @@ def create_parser():
         "--metric",
         required=True,
         type=str.lower,
-        choices=significantdigits.Metric.names,
+        choices=sd.Metric.names,
         help="Metric to compute",
     )
     parser.add_argument(
         "--method",
         type=str.lower,
-        default=significantdigits.Method.CNH.name,
-        choices=significantdigits.Method.names,
+        default=sd.Method.CNH.name,
+        choices=sd.Method.names,
         help="Method to use",
     )
     parser.add_argument(
         "--error",
         type=str.lower,
-        default=significantdigits.Error.Relative.name,
-        choices=significantdigits.Error.names,
+        default=sd.Error.Relative.name,
+        choices=sd.Error.names,
         help="Error to use",
     )
     parser.add_argument(
