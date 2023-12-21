@@ -226,8 +226,22 @@ def preprocess_inputs(
     return (array, reference)
 
 
+def divide_along_axis(x, y, axis):
+    shape = list(y.shape)
+    shape.insert(axis, 1)
+    y_reshaped = np.reshape(y, shape)
+    return np.divide(x, y_reshaped)
+
+
+def substract_along_axis(x, y, axis):
+    shape = list(y.shape)
+    shape.insert(axis, 1)
+    y_reshaped = np.reshape(y, shape)
+    return np.subtract(x, y_reshaped)
+
+
 def compute_z(
-    array: InputType,
+    array: np.ndarray,
     reference: Optional[ReferenceType],
     error: Union[Error, str],
     axis: int,
@@ -252,7 +266,7 @@ def compute_z(
 
     Parameters
     ----------
-    array : InputType
+    array : np.ndarray
         The random variable
     reference : Optional[ReferenceType]
         The reference to compare against
@@ -304,18 +318,18 @@ def compute_z(
     y = np.array(y)
 
     if Error.is_absolute(error):
-        z = x - y
+        z = substract_along_axis(x, y, axis=axis)
     elif Error.is_relative(error):
         if np.any(y[y == 0]):
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
-        z = x / y - 1
+        z = divide_along_axis(x, y, axis=axis) - 1
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
     return z
 
 
-def significant_digits_cnh(
+def _significant_digits_cnh(
     array: InputType,
     reference: Optional[ReferenceType],
     axis: int,
@@ -386,7 +400,7 @@ def significant_digits_cnh(
     return significant
 
 
-def significant_digits_general(
+def _significant_digits_general(
     array: InputType,
     reference: Optional[ReferenceType],
     axis: int,
@@ -535,7 +549,7 @@ def significant_digits(
     array, reference = preprocess_inputs(array, reference)
 
     if method == Method.CNH:
-        significant = significant_digits_cnh(
+        significant = _significant_digits_cnh(
             array=array,
             reference=reference,
             error=error,
@@ -547,7 +561,7 @@ def significant_digits(
         )
 
     elif method == Method.General:
-        significant = significant_digits_general(
+        significant = _significant_digits_general(
             array=array,
             reference=reference,
             error=error,
@@ -562,7 +576,7 @@ def significant_digits(
     return significant
 
 
-def contributing_digits_cnh(
+def _contributing_digits_cnh(
     array: InputType,
     reference: Optional[ReferenceType],
     axis: int,
@@ -634,7 +648,7 @@ def contributing_digits_cnh(
     return contributing
 
 
-def contributing_digits_general(
+def _contributing_digits_general(
     array: InputType,
     reference: Optional[ReferenceType],
     axis: int,
@@ -794,7 +808,7 @@ def contributing_digits(
     array, reference = preprocess_inputs(array, reference)
 
     if method == Method.CNH:
-        contributing = contributing_digits_cnh(
+        contributing = _contributing_digits_cnh(
             array=array,
             reference=reference,
             error=error,
@@ -806,7 +820,7 @@ def contributing_digits(
         )
 
     elif method == Method.General:
-        contributing = contributing_digits_general(
+        contributing = _contributing_digits_general(
             array=array,
             reference=reference,
             error=error,
