@@ -1,6 +1,6 @@
-# significantdigits package - v0.2.0
+# significantdigits package - v0.3.0
 
-Compute the number of significant digits basis on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
+Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
 
 ## Getting started
@@ -9,14 +9,14 @@ This synthetic example illustrates how to compute significant digits
 of a results sample with a given known reference:
 
 ```python
->>> import significantdigits as sig
+>>> import significantdigits as sd
 >>> import numpy as np
 >>> from numpy.random import uniform as U
 >>> np.random.seed(0)
 >>> eps = 2**-52
 >>> # simulates results with epsilon differences
 >>> X = [1+U(-1,1)*eps for _ in range(10)]
->>> sig.significant_digits(X, reference=1)
+>>> sd.significant_digits(X, reference=1)
 >>> 51.02329058847853
 ```
 
@@ -30,21 +30,21 @@ If the reference is unknown, one can use the sample average:
 
 ```python
 ...
->>> sig.significant_digits(X, reference=np.mean(X))
+>>> sd.significant_digits(X, reference=np.mean(X))
 >>> 51.02329058847853
 ```
 ## Installation
 
 ```bash
-    python3 -m pip install -U significantdigits
+python3 -m pip install -U significantdigits
 ```
 
 or if you want the latest version of the code, you can install it **from** the repository directly
 
 ```bash
-    python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.git
-    # or if you don't have 'git' installed
-    python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
+python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.git
+# or if you don't have 'git' installed
+python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
 ```
 
 ## Advanced Usage
@@ -53,13 +53,13 @@ or if you want the latest version of the code, you can install it **from** the r
 
 Functions accept the following types of inputs:
 ```python
-    InputType: np.ndarray | tuple | list
+    InputType: ArrayLike
 ```
-Those types are accessible with the `get_input_type` function.
+Those types are accessible with the `numpy.typing.ArrayLike` type.
 
 ### Z computation
 Metrics are computed using Z, the distance between the samples and the reference.
-They are four possible cases depending on the distance and the nature of the reference that is summarized in this table:
+There are four possible cases depending on the distance and the nature of the reference that are summarized in this table:
 
 |                    | constant reference (x) | random variable reference (Y) |
 | ------------------ | ---------------------- | ----------------------------- |
@@ -68,7 +68,11 @@ They are four possible cases depending on the distance and the nature of the ref
 
 
 ```python
-compute_z(array: ~InputType, reference: Optional[~ReferenceType], error: significantdigits._significantdigits.Error | str, axis: int, shuffle_samples: bool = False) -> ~InputType
+_compute_z(array: InternalArrayType, 
+           reference: InternalArrayType | None, 
+           error: Error | str, 
+           axis: int, 
+           shuffle_samples: bool = False) -> InternalArrayType
     Compute Z, the distance between the random variable and the reference
 
     Compute Z, the distance between the random variable and the reference
@@ -88,11 +92,11 @@ compute_z(array: ~InputType, reference: Optional[~ReferenceType], error: signifi
 
     Parameters
     ----------
-    array : InputType
+    array : InternalArrayType
         The random variable
-    reference : Optional[ReferenceType]
+    reference : Optional[InternalArrayType]
         The reference to compare against
-    error : Method.Error | str
+    error : Error | str
         The error function to compute Z
     axis : int, default=0
         The axis or axes along which compute Z
@@ -101,7 +105,7 @@ compute_z(array: ~InputType, reference: Optional[~ReferenceType], error: signifi
 
     Returns
     -------
-    array : numpy.ndarray
+    array : InternalArrayType
         The result of Z following the error method choose
 ```
 
@@ -129,10 +133,18 @@ class Method(AutoName):
 
 
 ```python
-significant_digits(array: ~InputType,
-                   reference: Optional[~ReferenceType] = None,
-                   axis: int = 0, basis: int = 2,
-                   error: str | significantdigits._significantdi
+significant_digits(array: InputType,
+                   reference: ReferenceType | None = None,
+                   axis: int = 0, 
+                   basis: int = 2,
+                   error: Error | str,
+                   method: Method | str,
+                   probability: float = 0.95,
+                   confidence: float = 0.95,
+                   shuffle_samples: bool = False,
+                   dtype: DTypeLike | None = None
+                   ) -> ArrayLike
+    
     Compute significant digits
 
     This function computes with a certain probability
@@ -142,7 +154,7 @@ significant_digits(array: ~InputType,
     ----------
     array: InputType
         Element to compute
-    reference: Optional[ReferenceType], optional=None
+    reference: ReferenceType | None, optional=None
         Reference for comparing the array
     axis: int, optional=0
         Axis or axes along which the significant digits are computed
@@ -160,7 +172,7 @@ significant_digits(array: ~InputType,
         If reference is None, the array is split in two and \
         comparison is done between both pieces. \
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing significant digits
         Widest format between array and reference is taken if no supplied.
 
@@ -174,9 +186,19 @@ significant_digits(array: ~InputType,
 ### Contributing digits
 
 ```python
-contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = None, axis: int = 0, basis: int = 2, error: str | significantdigits._significantdigits.Error = <Error.Re$
+contributing_digits(array: InputType,
+                    reference: ReferenceType | None = None,
+                    axis: int = 0,
+                    basis: int = 2,
+                    error: Error | str,
+                    method: Method | str,
+                    probability: float = 0.51,
+                    confidence: float = 0.95,
+                    shuffle_samples: bool = False,
+                    dtype: DTypeLike | None = None
+                    ) -> ArrayLike
+    
     Compute contributing digits
-
 
     This function computes with a certain probability the number of bits
     of the mantissa that will round the result towards the correct reference
@@ -186,7 +208,7 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
     ----------
     array: InputArray
         Element to compute
-    reference: Optional[ReferenceArray], default=None
+    reference: ReferenceArray | None, default=None
         Reference for comparing the array
     axis: int, default=0
         Axis or axes along which the contributing digits are computed
@@ -205,7 +227,7 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing contributing digits
         Widest format between array and reference is taken if no supplied.
 
@@ -219,12 +241,10 @@ contributing_digits(array: ~InputType, reference: Optional[~ReferenceType] = Non
 
 These are utility functions for the general case.
 
-`probability_estimation_general`
-allows having an estimation
-on the lower bound probability given the sample size.
+#### `probability_estimation_general`
 
-`minimum_number_of_trials` gives the minimal sample size
-required to reach the requested `probability` and `confidence`.
+Estimates the lower bound probability given the sample size.
+
 
 ```python
 probability_estimation_general(success: int, trials: int, confidence: float) -> float
@@ -250,8 +270,12 @@ probability_estimation_general(success: int, trials: int, confidence: float) -> 
         The lower bound probability with `confidence` level to have `success` successes for `trials` trials
 ```
 
-```python
+#### `minimum_number_of_trials`
 
+Returns the minimal sample size required to reach the requested `probability` and `confidence`.
+
+
+```python
 minimum_number_of_trials(probability: float, confidence: float) -> int
     Computes the minimum number of trials to have probability and confidence
 
@@ -273,7 +297,6 @@ minimum_number_of_trials(probability: float, confidence: float) -> int
     -------
     int
         Minimal sample size to have given probability and confidence
-
 ```
 
 ### License
@@ -285,3 +308,4 @@ See https://llvm.org/LICENSE.txt for license information.
 
 Copyright (c) 2020-2023 Verificarlo Contributors
 
+---

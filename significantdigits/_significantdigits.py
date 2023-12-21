@@ -1,10 +1,28 @@
+from __future__ import annotations
+
+import typing
 import warnings
 from enum import Enum, auto
-from typing import Optional, Tuple, TypeVar, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import scipy
 import scipy.stats
+
+__all__ = [
+    "significant_digits",
+    "contributing_digits",
+    "change_basis",
+    "probability_estimation_bernoulli",
+    "minimum_number_of_trials",
+    "InputType",
+    "ReferenceType",
+    "Metric",
+    "Method",
+    "Error",
+    "SignificantDigitsException",
+]
 
 
 class SignificantDigitsException(Exception):
@@ -12,14 +30,23 @@ class SignificantDigitsException(Exception):
 
 
 class AutoName(Enum):
+    """@private"""
+
+    names: list[str]
+    """@private"""
+    map: dict[str, AutoName]
+    """@private"""
+
     def _generate_next_value_(name, start, count, last_values):
         return name
 
 
 class Metric(AutoName):
     """
-    Significant: Compute the number of significant digits
-    Contributing: Compute the number of contributing digits
+    Different metrics to compute
+
+    - Significant: Compute the number of significant digits
+    - Contributing: Compute the number of contributing digits
     """
 
     Significant = auto()
@@ -27,6 +54,7 @@ class Metric(AutoName):
 
     @classmethod
     def is_significant(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.Significant
         if isinstance(error, str):
@@ -34,6 +62,7 @@ class Metric(AutoName):
 
     @classmethod
     def is_contributing(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.Contributing
         if isinstance(error, str):
@@ -42,10 +71,12 @@ class Metric(AutoName):
 
 class Method(AutoName):
     """
-    CNH: Centered Normality Hypothesis
-         X follows a Gaussian law centered around the reference or
-         Z follows a Gaussian law centered around 0
-    General: No assumption about the distribution of X or Z
+    Methods for underlying distribution hypothesis
+
+    - CNH: Centered Normality Hypothesis
+        - X follows a Gaussian law centered around the reference or
+        - Z follows a Gaussian law centered around 0
+    - General: No assumption about the distribution of X or Z
     """
 
     CNH = auto()
@@ -53,6 +84,7 @@ class Method(AutoName):
 
     @classmethod
     def is_cnh(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.CNH
         if isinstance(error, str):
@@ -60,6 +92,7 @@ class Method(AutoName):
 
     @classmethod
     def is_general(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.General
         if isinstance(error, str):
@@ -67,13 +100,20 @@ class Method(AutoName):
 
 
 class Error(AutoName):
-    """
-    ----------+-------------+-------------
-              | Reference x | Reference Y
-    ----------+-------------+-------------
-    Absolute  | Z = X - x   | Z = X - Y
-    Relative  | Z = X/x - 1 | Z = X/Y - 1
-    ----------+-------------+-------------
+    r"""
+    Errors between random variable and reference
+
+    Reference is either a random variable ($Y$) or a constant ($x$)
+
+    .. math::
+    \begin{array}{|c|c|c|}
+    \hline
+                & \text{Reference } x & \text{Reference } Y \newline
+    \hline
+    \text{Absolute}    &  Z = X - x   &  Z = X - Y  \newline
+    \text{Relative}    &  Z = X/x - 1  &  Z = X/Y - 1 \newline
+    \hline
+    \end{array}
     """
 
     Absolute = auto()
@@ -81,6 +121,7 @@ class Error(AutoName):
 
     @classmethod
     def is_absolute(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.Absolute
         if isinstance(error, str):
@@ -88,10 +129,21 @@ class Error(AutoName):
 
     @classmethod
     def is_relative(cls, error):
+        """@private"""
         if isinstance(error, cls):
             return error == cls.Relative
         if isinstance(error, str):
             return error.lower() == cls.Relative.name
+
+
+@typing.overload
+def _lower_map(x: list[str]) -> list[str]:
+    ...
+
+
+@typing.overload
+def _lower_map(x: dict[str, AutoName]) -> dict[str, AutoName]:
+    ...
 
 
 def _lower_map(x):
@@ -110,38 +162,30 @@ Method.map = _lower_map(vars(Method)["_value2member_map_"])
 Error.names = _lower_map(vars(Error)["_member_names_"])
 Error.map = _lower_map(vars(Error)["_value2member_map_"])
 
-internal_dtype = np.dtype(np.float64)
-default_probability = {Metric.Significant: 0.95, Metric.Contributing: 0.51}
-default_confidence = {Metric.Significant: 0.95, Metric.Contributing: 0.95}
+_internal_dtype = np.dtype(np.float64)
+_default_probability = {Metric.Significant: 0.95, Metric.Contributing: 0.51}
+_default_confidence = {Metric.Significant: 0.95, Metric.Contributing: 0.95}
 
-InputType = TypeVar("InputType", np.ndarray, tuple, list)
+InputType = npt.ArrayLike
 r"""Valid random variable inputs type (np.ndarray, tuple, list)
 
 Types allowing for `array` in significant_digits and contributing_digits functions
 
 """
 
-ReferenceType = TypeVar(
-    "ReferenceType", np.ndarray, tuple, list, float, int, np.floating
-)
+
+ReferenceType = Union[npt.ArrayLike, np.number]
 r"""Valid reference inputs type (np.ndarray, tuple, list, float, int)
 
 Types allowing for `reference` in significant_digits and contributing_digits functions
 
 """
 
-
-def get_input_type():
-    r"""Returns InputType subtypes"""
-    return InputType.__constraints__
+InternalArrayType = npt.NDArray[np.number]
+r"""Internal array type used for computation"""
 
 
-def get_reference_type():
-    r"""Returns ReferenceType subtypes"""
-    return ReferenceType.__constraints__
-
-
-def assert_is_valid_metric(metric: Union[Metric, str]) -> None:
+def _assert_is_valid_metric(metric: Union[Metric, str]) -> None:
     if Metric.is_significant(metric) or Metric.is_contributing(metric):
         return
 
@@ -150,7 +194,7 @@ def assert_is_valid_metric(metric: Union[Metric, str]) -> None:
     )
 
 
-def assert_is_valid_method(method: Union[Method, str]) -> None:
+def _assert_is_valid_method(method: Union[Method, str]) -> None:
     if Method.is_cnh(method) or Method.is_general(method):
         return
 
@@ -159,21 +203,30 @@ def assert_is_valid_method(method: Union[Method, str]) -> None:
     )
 
 
-def assert_is_valid_error(error: Union[Error, str]) -> None:
+def _assert_is_valid_error(error: Union[Error, str]) -> None:
     if Error.is_absolute(error) or Error.is_relative(error):
         return
 
     raise TypeError(f"provided invalid error {error}: " f"must be one of {list(Error)}")
 
 
-def assert_is_probability(probability: float) -> None:
-    if probability < 0 or probability > 1:
+def _assert_is_probability(probability: float) -> None:
+    if not (0 <= probability <= 1):
         raise TypeError("probability must be between 0 and 1")
 
 
-def assert_is_confidence(confidence: float) -> None:
-    if confidence < 0 or confidence > 1:
+def _assert_is_confidence(confidence: float) -> None:
+    if not (0 <= confidence <= 1):
         raise TypeError("confidence must be between 0 and 1")
+
+
+def _preprocess_inputs(
+    array: InputType,
+    reference: Optional[ReferenceType],
+) -> Tuple[InternalArrayType, Optional[InternalArrayType]]:
+    preprocessed_array = np.asanyarray(array)
+    preprocessed_reference = np.asanyarray(reference) if reference is not None else None
+    return (preprocessed_array, preprocessed_reference)
 
 
 def change_basis(array: InputType, basis: int) -> InputType:
@@ -191,62 +244,34 @@ def change_basis(array: InputType, basis: int) -> InputType:
     np.ndarray
         Array convert to basis `basis`
     """
+    (preprocessed_array, _) = _preprocess_inputs(array, None)
     pow2 = np.power(2, array, dtype=np.float64)
-    array_masked = np.ma.array(pow2, mask=array <= 0)
+    array_masked = np.ma.array(pow2, mask=(preprocessed_array <= 0))
     return np.emath.logn(basis, array_masked)
 
 
-def preprocess_inputs(
-    array: Union[np.ndarray, tuple, list], reference: Union[np.ndarray, tuple, list]
-) -> Tuple[np.ndarray, np.ndarray]:
-    if scipy.sparse.issparse(array[0]):
-        array = np.asanyarray([i.toarray() for i in array])
-
-    if not isinstance(array, get_input_type()):
-        raise TypeError(
-            f"Input array must be " f"one of the following types " f"{get_input_type()}"
-        )
-
-    if not isinstance(array, np.ndarray):
-        array = np.array(array)
-
-    if reference is not None:
-        if scipy.sparse.issparse(reference):
-            reference = reference.toarray()
-        if not isinstance(reference, get_reference_type()):
-            raise TypeError(
-                f"Reference must be "
-                f"one of the following types "
-                f"{get_reference_type()}"
-            )
-
-        if not isinstance(reference, np.ndarray):
-            reference = np.array(reference)
-
-    return (array, reference)
-
-
-def divide_along_axis(x, y, axis):
+def _operator_along_axis(operator, x, y, axis):
     shape = list(y.shape)
     shape.insert(axis, 1)
     y_reshaped = np.reshape(y, shape)
-    return np.divide(x, y_reshaped)
+    return operator(x, y_reshaped)
 
 
-def substract_along_axis(x, y, axis):
-    shape = list(y.shape)
-    shape.insert(axis, 1)
-    y_reshaped = np.reshape(y, shape)
-    return np.subtract(x, y_reshaped)
+def _divide_along_axis(x, y, axis):
+    return _operator_along_axis(np.divide, x, y, axis)
 
 
-def compute_z(
-    array: np.ndarray,
-    reference: Optional[ReferenceType],
+def _substract_along_axis(x, y, axis):
+    return _operator_along_axis(np.subtract, x, y, axis)
+
+
+def _compute_z(
+    array: InternalArrayType,
+    reference: Optional[InternalArrayType],
     error: Union[Error, str],
     axis: int,
     shuffle_samples: bool = False,
-) -> InputType:
+) -> InternalArrayType:
     r"""Compute Z, the distance between the random variable and the reference
 
     Compute Z, the distance between the random variable and the reference
@@ -254,23 +279,24 @@ def compute_z(
 
     X = array
     Y = reference
+
     Three cases:
-        - Y is none
-            The case when X = Y
-            We split X in two and set one group to X and the other to Y
-        - X.ndim == Y.ndim
-            X and Y have the same dimension
-            It it the case when Y is a random variable
-        - X.ndim - 1 == Y.ndim or Y.ndim == 0
-            Y is a scalar value
+    - Y is none
+        - The case when X = Y
+        - We split X in two and set one group to X and the other to Y
+    - X.ndim == Y.ndim
+        X and Y have the same dimension
+        It it the case when Y is a random variable
+    - X.ndim - 1 == Y.ndim or Y.ndim == 0
+        Y is a scalar value
 
     Parameters
     ----------
-    array : np.ndarray
+    array : InternalArrayType
         The random variable
-    reference : Optional[ReferenceType]
+    reference : InternalArrayType | None
         The reference to compare against
-    error : Method.Error | str
+    error : Error | str
         The error function to use to compute error between array and reference.
     axis : int, default=0
         The axis or axes along which compute Z
@@ -279,13 +305,12 @@ def compute_z(
 
     Returns
     -------
-    array : numpy.ndarray
+    array : InternalArrayType
         The result of Z following the error method choose
 
     See Also
     --------
-    significantdigits.InputType : Type for random variable
-    significantdigits.ReferenceType : Type for reference
+    significantdigits.InternalArrayType : Type used for internal computations
 
 
     """
@@ -314,38 +339,38 @@ def compute_z(
     else:
         raise TypeError("No comparison found for X and reference:")
 
-    x = np.array(x)
-    y = np.array(y)
+    x = np.asanyarray(x)
+    y = np.asanyarray(y)
 
     if Error.is_absolute(error):
-        z = substract_along_axis(x, y, axis=axis)
+        z = _substract_along_axis(x, y, axis=axis)
     elif Error.is_relative(error):
         if np.any(y[y == 0]):
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
-        z = divide_along_axis(x, y, axis=axis) - 1
+        z = _divide_along_axis(x, y, axis=axis) - 1
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
     return z
 
 
 def _significant_digits_cnh(
-    array: InputType,
-    reference: Optional[ReferenceType],
+    array: InternalArrayType,
+    reference: Optional[InternalArrayType],
     axis: int,
     error: Union[Error, str],
     probability: float,
     confidence: float,
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> InternalArrayType:
     r"""Compute significant digits for Centered Normality Hypothesis (CNH)
 
     Parameters
     ----------
-    array: InputType
+    array: InternalArrayType
         Element to compute
-    reference: Optional[ReferenceType]
+    reference: InternalArrayType | None
         Reference for comparing the array
     axis: int
         Axis or axes along which the significant digits are computed
@@ -359,7 +384,7 @@ def _significant_digits_cnh(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing significant digits
         Widest format between array and reference is taken if not supplied.
 
@@ -367,13 +392,6 @@ def _significant_digits_cnh(
     -------
     ndarray
         array_like containing significant digits
-
-    See Also
-    --------
-    significantdigits.contributing_digits_general : Computes the contributing digits in general case
-    significantdigits.compute_z : Computes the error between random variable and reference
-    significantdigits.get_input_type : get InputType types
-    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -383,11 +401,12 @@ def _significant_digits_cnh(
     ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
 
     .. math::
-        s >= -log_2(std) - [\frac{1}{2} log_2( \frac{n-1}{ Chi^2_{1-\frac{\alpha}{2}} }) ) + log_2(F^{-1}(\frac{p+1}{2})]
+
+    s >= -log_2(std) - [\frac{1}{2} log_2( \frac{n-1}{ Chi^2_{1-\frac{\alpha}{2}} }) ) + log_2(F^{-1}(\frac{p+1}{2})]
     """
-    z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[axis]
-    std = np.std(z, axis=axis, dtype=internal_dtype)
+    std = z.std(axis=axis, dtype=_internal_dtype)
     std0 = np.ma.array(std, mask=std == 0)
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
@@ -401,13 +420,13 @@ def _significant_digits_cnh(
 
 
 def _significant_digits_general(
-    array: InputType,
-    reference: Optional[ReferenceType],
+    array: InternalArrayType,
+    reference: Optional[InternalArrayType],
     axis: int,
     error: Union[Error, str],
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> InternalArrayType:
     r"""Compute significant digits for unknown underlying distribution
 
     For the general case, the probability is not parametrizable but
@@ -417,9 +436,9 @@ def _significant_digits_general(
 
     Parameters
     ----------
-    array: InputType
+    array: InternalArrayType
         Element to compute
-    reference: Optional[ReferenceType]
+    reference: InternalArrayType | None
         Reference for comparing the array
     axis: int
         Axis or axes along which the significant digits are computed
@@ -429,7 +448,7 @@ def _significant_digits_general(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing significant digits
         Widest format between array and reference is taken if not supplied.
 
@@ -437,13 +456,6 @@ def _significant_digits_general(
     -------
     out : ndarray
         array_like containing significant digits
-
-    See Also
-    --------
-    significantdigits.significant_digits_cnh : Computes the significant digits under CNH
-    significantdigits.compute_z : Computes the error between random variable and reference
-    significantdigits.get_input_type : get InputType types
-    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -455,7 +467,7 @@ def _significant_digits_general(
     .. math::
         s = max{k \in [1,mant], st \forall i \in [1,n], |Z_i| <= 2^{-k}}
     """
-    z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     significant = np.ma.MaskedArray(
@@ -486,18 +498,42 @@ def significant_digits(
     basis: int = 2,
     error: Union[str, Error] = Error.Relative,
     method: Union[str, Method] = Method.CNH,
-    probability: float = default_probability[Metric.Significant],
-    confidence: float = default_confidence[Metric.Significant],
+    probability: float = _default_probability[Metric.Significant],
+    confidence: float = _default_confidence[Metric.Significant],
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> npt.ArrayLike:
     r"""Compute significant digits
+
+    This function calculates with a certain probability the number of
+    significant bits with, in comparison to a correct reference value[1]_.
+
+    .. math::
+        \begin{array}{ll}
+        & \text{Significant digits formulae for both cases} \newline
+        \text{CNH:} & \hat{s}_{CNH} = -\log_2(\hat{\sigma}_Z) - \left[ \dfrac{1}{2} \log_2\left( \dfrac{n-1}{ \chi^2_{1-\alpha/2 } }\right) + \log_2 \left( F^{-1}\left( \dfrac{p+1}{2} \right) \right) \right] \newline
+        \text{General:} & \hat{s}_B = \max \left\\{ k \in [0,53] \text{ s.t. } \forall i \in [1, n], |Z_i| \leq 2^{-k} \right\\}
+        \end{array}
+
+    - X = array
+    - Y = reference
+
+    Three cases:
+    - Y is None
+        - Divide X equally between variables 'X' and 'Y'
+        - The case when X = Y
+    - X.ndim == Y.ndim
+        - X and Y have the same dimension
+        - The case when Y is a random variable
+    - X.ndim - 1 == Y.ndim or Y.ndim == 0
+        - Y is a scalar value
+
 
     Parameters
     ----------
     array: InputType
         Element to compute
-    reference: Optional[ReferenceType], optional=None
+    reference: ReferenceType | None, optional=None
         Reference for comparing the array
     axis: int, optional=0
         Axis or axes along which the significant digits are computed
@@ -512,10 +548,10 @@ def significant_digits(
     confidence : float, default=0.95
         Confidence level for the significant digits result
     shuffle_samples : bool, optional=False
-        If reference is None, the array is split in two and \
-        comparison is done between both pieces. \
+        If reference is None, the array is split in two and
+        comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing significant digits
         Widest format between array and reference is taken if no supplied.
 
@@ -527,31 +563,33 @@ def significant_digits(
     See Also
     --------
     significantdigits.contributing_digits : Computes the contributing digits
-    significantdigits.compute_z : Computes the error between random variable and reference
-    significantdigits.get_input_type : get InputType types
-    significantdigits.get_output_type : get ReferenceType types
+    significantdigits.Error : Errors between random variable and reference
+    significantdigits.Method : Methods for underlying distribution hypothesis
+    significantdigits.InputType : get InputType types
+    significantdigits.ReferenceType : get ReferenceType types
 
     Notes
     -----
     .. [1] Sohier, D., Castro, P. D. O., Févotte, F.,
-    Lathuilière, B., Petit, E., & Jamond, O. (2021).
-    Confidence intervals for stochastic arithmetic.
-    ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
+        Lathuilière, B., Petit, E., & Jamond, O. (2021).
+        Confidence intervals for stochastic arithmetic.
+        ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
+
 
     """
-    assert_is_probability(probability)
-    assert_is_confidence(confidence)
-    assert_is_valid_method(method)
-    assert_is_valid_error(error)
+    _assert_is_probability(probability)
+    _assert_is_confidence(confidence)
+    _assert_is_valid_method(method)
+    _assert_is_valid_error(error)
 
     significant = None
 
-    array, reference = preprocess_inputs(array, reference)
+    preproc_array, preproc_reference = _preprocess_inputs(array, reference)
 
     if method == Method.CNH:
         significant = _significant_digits_cnh(
-            array=array,
-            reference=reference,
+            array=preproc_array,
+            reference=preproc_reference,
             error=error,
             probability=probability,
             confidence=confidence,
@@ -562,13 +600,15 @@ def significant_digits(
 
     elif method == Method.General:
         significant = _significant_digits_general(
-            array=array,
-            reference=reference,
+            array=preproc_array,
+            reference=preproc_reference,
             error=error,
             axis=axis,
             shuffle_samples=shuffle_samples,
             dtype=dtype,
         )
+    else:
+        raise SignificantDigitsException(f"Unknown method {method}")
 
     if basis != 2:
         significant = change_basis(significant, basis)
@@ -577,22 +617,22 @@ def significant_digits(
 
 
 def _contributing_digits_cnh(
-    array: InputType,
-    reference: Optional[ReferenceType],
+    array: InternalArrayType,
+    reference: Optional[InternalArrayType],
     axis: int,
     error: Union[Error, str],
     probability: float,
     confidence: float,
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> InternalArrayType:
     r"""Compute contributing digits for Centered Hypothesis Normality
 
     Parameters
     ----------
-    array: InputType
+    array: InternalArrayType
         Element to compute
-    reference: Optional[ReferenceType]
+    reference: InternalArrayType | None
         Reference for comparing the array
     axis: int
         Axis or axes along which the contributing digits are computed
@@ -606,7 +646,7 @@ def _contributing_digits_cnh(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing contributing digits
         Widest format between array and reference is taken if no supplied.
 
@@ -614,13 +654,6 @@ def _contributing_digits_cnh(
     -------
     ndarray
         array_like containing contributing digits
-
-    See Also
-    --------
-    significantdigits.significant_general : Computes the significant digits for general case
-    significantdigits.compute_z : Computes the error between random variable and reference
-    significantdigits.get_input_type : get InputType types
-    significantdigits.get_output_type : get ReferenceType types
 
     Notes
     -----
@@ -632,9 +665,9 @@ def _contributing_digits_cnh(
     .. math::
         c >= -log_2(std) - [\frac{1}{2} log_2( \frac{n-1} / \frac{ Chi^2_{1-\frac{alpha}{2}} }) ) + log_2(p+\frac{1}{2}) + log_2(2\sqrt{2\pi})]
     """
-    z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     nb_samples = z.shape[axis]
-    std = np.std(z, axis=axis, dtype=internal_dtype)
+    std = z.std(axis=axis, dtype=_internal_dtype)
     std0 = np.ma.masked_array(std, mask=std == 0)
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     delta_chn = (
@@ -643,20 +676,19 @@ def _contributing_digits_cnh(
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
     contributing = -np.ma.log2(std0) - delta_chn
-    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
+    max_bits: int = np.finfo(dtype if dtype else z.dtype).nmant
     contributing = contributing.filled(fill_value=max_bits - delta_chn)
     return contributing
 
 
 def _contributing_digits_general(
-    array: InputType,
-    reference: Optional[ReferenceType],
+    array: InternalArrayType,
+    reference: Optional[InternalArrayType],
     axis: int,
     error: Union[Error, str],
-    probability: float,
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> InternalArrayType:
     r"""Computes contributing digits for unknown underlying distribution
 
     This function computes with a certain probability the number of bits
@@ -665,21 +697,19 @@ def _contributing_digits_general(
 
     Parameters
     ----------
-    array: InputType
+    array: InternalArrayType
         Element to compute
-    reference: Optional[ReferenceType]
+    reference: InternalArrayType | None
         Reference for comparing the array
     axis: int
         Axis or axes along which the contributing digits are computed
     error : Error | str
         The error function to use to compute error between array and reference.
-    probability : float
-        Probability for the contributing digits result
     shuffle_samples : bool, default=False
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing contributing digits
         Widest format between array and reference is taken if no supplied.
     Returns
@@ -706,7 +736,7 @@ def _contributing_digits_general(
         c = (\frac{#success}{#trials} > p)
     """
 
-    z = compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = np.finfo(dtype if dtype else z.dtype).nmant
     contributing = np.ma.MaskedArray(
@@ -739,23 +769,42 @@ def contributing_digits(
     basis: int = 2,
     error: Union[str, Error] = Error.Relative,
     method: Union[str, Method] = Method.CNH,
-    probability: float = default_probability[Metric.Contributing],
-    confidence: float = default_confidence[Metric.Contributing],
+    probability: float = _default_probability[Metric.Contributing],
+    confidence: float = _default_confidence[Metric.Contributing],
     shuffle_samples: bool = False,
-    dtype: Optional[np.dtype] = None,
-) -> InputType:
+    dtype: Optional[npt.DTypeLike] = None,
+) -> npt.ArrayLike:
     r"""Compute contributing digits
 
-
     This function computes with a certain probability the number of bits
-    of the mantissa that will round the result towards the correct reference
-    value[1]_
+    that will round the result towards the correct reference
+    value [1]_
+
+    - X = array
+    - Y = reference
+
+    Three cases:
+    - Y is None
+        - Divide X equally between variables 'X' and 'Y'
+        - The case when X = Y
+    - X.ndim == Y.ndim
+        - X and Y have the same dimension
+        - The case when Y is a random variable
+    - X.ndim - 1 == Y.ndim or Y.ndim == 0
+        - Y is a scalar value
+
+    .. math::
+        \begin{array}{ll}
+        & \text{Contributing digits formulae for both cases} \newline
+        \text{CNH} & \hat{c}_{cnh} = -\log_2(\hat{\sigma}_Z) - \left[ \dfrac{1}{2} \log_2\left( \dfrac{n-1}{ \chi^2_{1-\alpha/2}} \right) + \log_2 \left (p-\dfrac{1}{2} \right) + \log_2( 2\sqrt{2\pi}) \right] \newline
+        \text{General:} & \hat{c}_B = \max \left\\{ k \in [0,53] \text{ s.t. } \forall i \in [1, n], \lfloor 2^k|Z_i|  \rfloor \text{ is even } \right\\}
+        \end{array}
 
     Parameters
     ----------
     array: InputArray
         Element to compute
-    reference: Optional[ReferenceArray], default=None
+    reference: ReferenceArray | None, default=None
         Reference for comparing the array
     axis: int, default=0
         Axis or axes along which the contributing digits are computed
@@ -774,7 +823,7 @@ def contributing_digits(
         If reference is None, the array is split in two and
         comparison is done between both pieces.
         If shuffle_samples is True, it shuffles pieces.
-    dtype : np.dtype, default=None
+    dtype : dtype_like | None, default=None
         Numerical type used for computing contributing digits
         Widest format between array and reference is taken if no supplied.
     Returns
@@ -785,27 +834,28 @@ def contributing_digits(
     See Also
     --------
     significantdigits.significant_digits : Computes the significant digits
-    significantdigits.compute_z : Computes the error between random variable and reference
-    significantdigits.get_input_type : get InputType types
-    significantdigits.get_output_type : get ReferenceType types
+    significantdigits.Error : Errors between random variable and reference
+    significantdigits.Method : Methods for underlying distribution hypothesis
+    significantdigits.InputType : get InputType types
+    significantdigits.ReferenceType : get ReferenceType types
 
     Notes
     -----
     .. [1] Sohier, D., Castro, P. D. O., Févotte, F.,
-    Lathuilière, B., Petit, E., & Jamond, O. (2021).
-    Confidence intervals for stochastic arithmetic.
-    ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
+        Lathuilière, B., Petit, E., & Jamond, O. (2021).
+        Confidence intervals for stochastic arithmetic.
+        ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
 
     """
 
-    assert_is_probability(probability)
-    assert_is_confidence(confidence)
-    assert_is_valid_method(method)
-    assert_is_valid_error(error)
+    _assert_is_probability(probability)
+    _assert_is_confidence(confidence)
+    _assert_is_valid_method(method)
+    _assert_is_valid_error(error)
 
     contributing = None
 
-    array, reference = preprocess_inputs(array, reference)
+    array, reference = _preprocess_inputs(array, reference)
 
     if method == Method.CNH:
         contributing = _contributing_digits_cnh(
@@ -825,10 +875,11 @@ def contributing_digits(
             reference=reference,
             error=error,
             axis=axis,
-            probability=probability,
             shuffle_samples=shuffle_samples,
             dtype=dtype,
         )
+    else:
+        raise SignificantDigitsException(f"Unknown method {method}")
 
     if basis != 2:
         contributing = change_basis(contributing, basis)
@@ -870,9 +921,15 @@ def probability_estimation_bernoulli(
     ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
 
     .. math::
-        p = 1 + \frac{\log{ 1 - \alpha }}{n} if success=sample\_size
-        p = \frac{s+2}{s+4} - F^{-1}(\frac{p+1}{2}) \sqrt{ \frac{(s+2)(n-s+2)}{n+4}^3  } else
+        p =
+        \begin{cases}
+            1 + \frac{\log{ 1 - \alpha }}{n} & \text{if s=n} \newline
+            \frac{s+2}{s+4} - F^{-1}(\frac{p+1}{2}) \sqrt{ \frac{(s+2)(n-s+2)}{n+4}^3  } & \text{else}
+        \end{cases}
+
     """
+    _assert_is_confidence(confidence)
+
     s = success
     n = trials
     coef = scipy.stats.norm.ppf(confidence)
@@ -918,9 +975,12 @@ def minimum_number_of_trials(probability: float, confidence: float) -> int:
     ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
 
     .. math::
-        n = \lceil \frac{\ln{\alpha}}{\ln{p}}
+        n = \left \lceil \frac{\ln{\alpha}}{\ln{p}} \right \rceil
 
     """
+    _assert_is_probability(probability)
+    _assert_is_confidence(confidence)
+
     alpha = 1 - confidence
     n = np.log(alpha) / np.log(probability)
     return int(np.ceil(n))
