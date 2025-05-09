@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import typing
 import warnings
 from enum import Enum, auto
@@ -137,13 +138,11 @@ class Error(AutoName):
 
 
 @typing.overload
-def _lower_map(x: list[str]) -> list[str]:
-    ...
+def _lower_map(x: list[str]) -> list[str]: ...
 
 
 @typing.overload
-def _lower_map(x: dict[str, AutoName]) -> dict[str, AutoName]:
-    ...
+def _lower_map(x: dict[str, AutoName]) -> dict[str, AutoName]: ...
 
 
 def _lower_map(x):
@@ -185,7 +184,7 @@ InternalArrayType = npt.NDArray[np.number]
 r"""Internal array type used for computation"""
 
 
-def _assert_is_valid_metric(metric: Union[Metric, str]) -> None:
+def _assert_is_valid_metric(metric: Union[Metric, str]) -> None:  # type: ignore
     if Metric.is_significant(metric) or Metric.is_contributing(metric):
         return
 
@@ -220,6 +219,15 @@ def _assert_is_confidence(confidence: float) -> None:
         raise TypeError("confidence must be between 0 and 1")
 
 
+def _assert_is_valid_inputs(array: InputType) -> None:
+    if not isinstance(array, (np.ndarray, list, tuple)):
+        raise TypeError(
+            f"array must be of type {InputType}, " f"not {type(array).__name__}"
+        )
+    if isinstance(array, np.ndarray) and array.ndim == 0:
+        raise TypeError("array must be at least 1D")
+
+
 def _preprocess_inputs(
     array: InputType,
     reference: Optional[ReferenceType],
@@ -245,9 +253,8 @@ def change_basis(array: InputType, basis: int) -> InputType:
         Array convert to basis `basis`
     """
     (preprocessed_array, _) = _preprocess_inputs(array, None)
-    pow2 = np.power(2, array, dtype=np.float64)
-    array_masked = np.ma.array(pow2, mask=(preprocessed_array <= 0))
-    return np.emath.logn(basis, array_masked)
+    factor = np.log(2) / np.log(basis)
+    return preprocessed_array * factor
 
 
 def _operator_along_axis(operator, x, y, axis):
@@ -265,13 +272,67 @@ def _substract_along_axis(x, y, axis):
     return _operator_along_axis(np.subtract, x, y, axis)
 
 
+def _get_significant_size(
+    z: InternalArrayType, dtype: Optional[npt.DTypeLike] = None
+) -> int:
+    if dtype is None:
+        dtype = z.dtype
+
+    return np.finfo(dtype).nmant  # type: ignore
+
+
+def _fill_where(
+    x: InternalArrayType, fill_value: InternalArrayType, mask: npt.NDArray
+) -> None:
+    """Fill x with fill_value where mask is True"""
+    if x.ndim == 0:
+        if ~mask:
+            x = fill_value
+    elif fill_value.ndim == 0:
+        x[mask] = fill_value
+    else:
+        x[mask] = fill_value[mask]
+
+
+def _compute_scaling_factor(
+    y: InternalArrayType, axis: int, reference_is_random_variable: bool
+) -> InternalArrayType:
+    """Compute the scaling factor for the error
+
+    The scaling factor is computed as the number of significant digits
+    of the reference. It is used to normalize the number of significant digits
+    when using absolute error.
+
+    Parameters
+    ----------
+    y : InternalArrayType
+        The reference to compare against
+    axis : int
+        The axis or axes along which compute the scaling factor
+    reference_is_random_variable : bool
+        If True, the reference is a random variable
+
+    Returns
+    -------
+    InternalArrayType
+        The scaling factor to compute the significant digits
+
+    """
+    if reference_is_random_variable:
+        # The reference is a random variable
+        y = y.mean(axis=axis)
+    y_masked = np.ma.masked_equal(y, 0)
+    e_y = np.ma.floor(np.ma.log2(np.ma.abs(y_masked)))
+    return np.ma.filled(e_y, 0) + 1
+
+
 def _compute_z(
     array: InternalArrayType,
     reference: Optional[InternalArrayType],
     error: Union[Error, str],
     axis: int,
     shuffle_samples: bool = False,
-) -> InternalArrayType:
+) -> Tuple[InternalArrayType, InternalArrayType]:
     r"""Compute Z, the distance between the random variable and the reference
 
     Compute Z, the distance between the random variable and the reference
@@ -307,6 +368,10 @@ def _compute_z(
     -------
     array : InternalArrayType
         The result of Z following the error method choose
+    scaling_factor : InternalArrayType
+        The scaling factor to compute the significant digits
+        Useful for absolute error to normalizing the number of significant digits
+        ``When Y is a random variable, we choose e = ⎣log_2|E[Y]|⎦+1.``p.10:9
 
     See Also
     --------
@@ -314,9 +379,14 @@ def _compute_z(
 
 
     """
+    _assert_is_valid_inputs(array)
+
     nb_samples = array.shape[axis]
 
     if reference is None:
+        # No reference provided
+        # X = Y
+        reference_is_random_variable = True
         if nb_samples % 2 != 0:
             error_msg = "Number of samples must be a multiple of 2"
             raise SignificantDigitsException(error_msg)
@@ -325,15 +395,24 @@ def _compute_z(
             np.random.shuffle(array)
         x, y = np.split(array, 2, axis=axis)
     elif reference.ndim == array.ndim:
+        # X and Y have the same dimension
+        # It is the case when Y is a random variable
+        reference_is_random_variable = True
         x = array
         y = reference
         if shuffle_samples:
             np.random.shuffle(x)
             np.random.shuffle(y)
     elif reference.ndim == array.ndim - 1:
+        # Y has one less dimension than X
+        # Y is a constant
+        reference_is_random_variable = False
         x = array
         y = reference
     elif reference.ndim == 0:
+        # Y is a scalar value
+        # Y is a constant
+        reference_is_random_variable = False
         x = array
         y = reference
     else:
@@ -344,14 +423,18 @@ def _compute_z(
 
     if Error.is_absolute(error):
         z = _substract_along_axis(x, y, axis=axis)
+        e = _compute_scaling_factor(
+            y, axis=axis, reference_is_random_variable=reference_is_random_variable
+        )
     elif Error.is_relative(error):
         if np.any(y[y == 0]):
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
         z = _divide_along_axis(x, y, axis=axis) - 1
+        e = np.full_like(y, 1)
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
-    return z
+    return z, e
 
 
 def _significant_digits_cnh(
@@ -404,15 +487,25 @@ def _significant_digits_cnh(
 
     s >= -log_2(std) - [\frac{1}{2} log_2( \frac{n-1}{ Chi^2_{1-\frac{\alpha}{2}} }) ) + log_2(F^{-1}(\frac{p+1}{2})]
     """
-    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z, e = _compute_z(
+        array, reference, error, axis=axis, shuffle_samples=shuffle_samples
+    )
     nb_samples = z.shape[axis]
     std = z.std(axis=axis, dtype=_internal_dtype)
-    std0 = np.ma.array(std, mask=std == 0)
+    # if std == 0, we set it to the maximum value of z
+    # to avoid returning the maximum number of bits depending on the dtype
+    # while it can be lower (cf. Cramer example)
+    z_eps = np.max(np.abs(z), axis=axis)
+    _fill_where(std, fill_value=z_eps, mask=std == 0)
+    # We need to mask the std where z_eps == 0
+    # In that case, we have no variance and z = 0
+    std0 = np.ma.array(std, mask=(z_eps == 0))
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
-    significant = -np.ma.log2(std0) - delta_chn
-    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
+    significant = -np.ma.log2(std0) + (e - 1) - delta_chn
+    std0 = np.ma.array(std, mask=std == 0)
+    max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
     if significant.ndim == 0:
         significant = np.ma.array(significant, mask=std0.mask)
     significant = significant.filled(fill_value=max_bits - delta_chn)
@@ -467,28 +560,29 @@ def _significant_digits_general(
     .. math::
         s = max{k \in [1,mant], st \forall i \in [1,n], |Z_i| <= 2^{-k}}
     """
-    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
-    sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
-    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    significant = np.ma.MaskedArray(
-        data=np.full(shape=sample_shape, fill_value=0, dtype=np.int8), mask=False
+    z, e = _compute_z(
+        array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
-    zz = np.ma.array(np.abs(z), mask=np.abs(z) <= 0, fill_value=max_bits)
-    if np.all(zz.mask):
-        return zz.filled()
+    sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
+    max_bits = _get_significant_size(z, dtype=dtype)
+    significant = np.full(shape=sample_shape, fill_value=max_bits + (e - 1))
+    mask = np.full_like(significant, True, dtype=bool)
+    z = np.abs(z)
 
-    z2 = np.ma.log2(zz)
+    if np.all(z <= 0):
+        return significant
 
     # Compute successes
     for k in range(0, max_bits + 1):
-        # min(bool) <=> logical and
-        successes = np.ma.min(z2 <= -k, axis=axis)
-        significant.mask |= np.ma.logical_not(successes)
-        significant[np.logical_not(significant.mask)] = k
-        if np.all(significant.mask):
+        kth = k + (e - 1.0)
+        successes = np.min(z <= 2**-kth, axis=axis)
+        mask = np.logical_and(mask, successes)
+        _fill_where(significant, fill_value=kth, mask=mask)
+
+        if ~mask.all():
             break
 
-    return significant.data
+    return significant
 
 
 def significant_digits(
@@ -665,18 +759,27 @@ def _contributing_digits_cnh(
     .. math::
         c >= -log_2(std) - [\frac{1}{2} log_2( \frac{n-1} / \frac{ Chi^2_{1-\frac{alpha}{2}} }) ) + log_2(p+\frac{1}{2}) + log_2(2\sqrt{2\pi})]
     """
-    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
+    z, e = _compute_z(
+        array, reference, error, axis=axis, shuffle_samples=shuffle_samples
+    )
     nb_samples = z.shape[axis]
     std = z.std(axis=axis, dtype=_internal_dtype)
-    std0 = np.ma.masked_array(std, mask=std == 0)
+    # if std == 0, we set it to the maximum value of z
+    # to avoid returning the maximum number of bits depending on the dtype
+    # while it can be lower (cf. Cramer example)
+    z_eps = np.max(np.abs(z), axis=axis)
+    _fill_where(std, fill_value=z_eps, mask=std == 0)
+    # We need to mask the std where z_eps == 0
+    # In that case, we have no variance and z = 0
+    std0 = np.ma.array(std, mask=(z_eps == 0))
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     delta_chn = (
         0.5 * np.log2((nb_samples - 1) / chi2)
         + np.log2(probability - 0.5)
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
-    contributing = -np.ma.log2(std0) - delta_chn
-    max_bits: int = np.finfo(dtype if dtype else z.dtype).nmant
+    contributing = -np.ma.log2(std0) + (e - 1) - delta_chn
+    max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
     contributing = contributing.filled(fill_value=max_bits - delta_chn)
     return contributing
 
@@ -736,30 +839,26 @@ def _contributing_digits_general(
         c = (\frac{#success}{#trials} > p)
     """
 
-    z = _compute_z(array, reference, error, axis=axis, shuffle_samples=shuffle_samples)
-    sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
-    max_bits = np.finfo(dtype if dtype else z.dtype).nmant
-    contributing = np.ma.MaskedArray(
-        data=np.full(shape=sample_shape, fill_value=1, dtype=np.int8), mask=False
+    z, e = _compute_z(
+        array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
+    sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
+    max_bits = _get_significant_size(z, dtype=dtype)
+    contributing = np.full(shape=sample_shape, fill_value=1)
+    mask = np.full_like(contributing, True, dtype=bool)
 
     for k in range(1, max_bits + 1):
-        # scale = ldexp(x,n) = x * 2^n
-        # floor(scale) & 1 : returns 1 if scale is odd
-        # taking the max to check if at least one result is odd
-        # Get the negation to have success as boolean
-        successes = np.logical_not(
-            np.max(
-                np.bitwise_and(np.floor(np.abs(np.ldexp(z, k))).astype(np.int64), 1),
-                axis=axis,
-            )
-        )
-        contributing.mask |= np.ma.logical_not(successes)
-        contributing[np.logical_not(contributing.mask)] = k
-        if np.all(contributing.mask):
+        kth = k - (e - 1.0)
+        kth_bit_z = np.floor(np.abs(z) * 2**kth).astype(np.int64)
+
+        successes = np.sum(np.mod(kth_bit_z, 2), axis=axis) == 0
+        mask = np.logical_and(mask, successes)
+        _fill_where(contributing, fill_value=kth, mask=mask)
+
+        if ~mask.all():
             break
 
-    return contributing.data
+    return contributing
 
 
 def contributing_digits(

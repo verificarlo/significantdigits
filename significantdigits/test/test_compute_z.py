@@ -19,7 +19,13 @@ def test_compute_z_none_none(error):
     Test compute_z when X and Y are None
     """
     with pytest.raises(TypeError):
-        _compute_z(np.array(), None, axis=0, error=error)
+        _compute_z(np.array(), None, axis=0, error=error)  # type: ignore
+
+    with pytest.raises(TypeError):
+        _compute_z(None, np.array(), axis=0, error=error)  # type: ignore
+
+    with pytest.raises(TypeError):
+        _compute_z(None, None, axis=0, error=error)  # type: ignore
 
 
 def test_compute_z_x_rv():
@@ -31,12 +37,15 @@ def test_compute_z_x_rv():
     y = None
 
     z_rel = x[:2] / x[2:] - 1
-    z = _compute_z(x, y, axis=0, error=sd.Error.Relative)
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Relative)
     assert np.all(np.equal(z, z_rel))
+    assert np.all(np.equal(e, 1))
 
     z_abs = x[:2] - x[2:]
-    z = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
+    e_ref = np.floor(np.log2(np.abs(x[2:].mean()))) + 1
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
     assert np.all(np.equal(z, z_abs))
+    assert np.all(np.equal(e, e_ref))
 
     x = np.array([1, 2, 3])
     # Invalid shape, must be a multiple of two
@@ -50,14 +59,18 @@ def test_compute_z_x_rv_y_rv():
     """
     x = np.array([1, 2, 3, 4])
     y = np.array([1, 2, 3, 4]) + 1e-5
+    e_ref_rel = np.full_like(y, 1)
+    e_ref_abs = np.floor(np.log2(np.abs(y).mean())) + 1
 
     z_rel = x / y - 1
-    z = _compute_z(x, y, axis=0, error=sd.Error.Relative)
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Relative)
     assert np.all(np.equal(z, z_rel))
+    assert np.all(np.equal(e, e_ref_rel))
 
     z_abs = x - y
-    z = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
     assert np.all(np.equal(z, z_abs))
+    assert np.all(np.equal(e, e_ref_abs))
 
 
 def test_compute_z_x_rv_y_scalar():
@@ -66,14 +79,18 @@ def test_compute_z_x_rv_y_scalar():
     """
     x = np.array([1, 2, 3, 4])
     y = np.array(1)
+    e_ref_rel = np.full_like(x, 1)
+    e_ref_abs = np.floor(np.log2(y)) + 1
 
     z_rel = x / y - 1
-    z = _compute_z(x, y, axis=0, error=sd.Error.Relative)
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Relative)
     assert np.all(np.equal(z, z_rel))
+    assert np.all(np.equal(e, e_ref_rel))
 
     z_abs = x - y
-    z = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
     assert np.all(np.equal(z, z_abs))
+    assert np.all(np.equal(e, e_ref_abs))
 
 
 def test_compute_z_x_rv_y_ref():
@@ -101,9 +118,29 @@ def test_compute_z_x_rv_y_ref():
         y = x.sum(axis=axis)
 
         z_rel = x / y[index] - 1
-        z = _compute_z(x, y, axis=axis, error=sd.Error.Relative)
+        e_ref_rel = np.full_like(y, 1)
+        z, e = _compute_z(x, y, axis=axis, error=sd.Error.Relative)
         assert np.all(np.equal(z, z_rel))
+        assert np.all(np.equal(e, e_ref_rel))
 
         z_abs = x - y[index]
-        z = _compute_z(x, y, axis=axis, error=sd.Error.Absolute)
+        e_ref_abs = np.floor(np.log2(np.abs(y))) + 1
+        z, e = _compute_z(x, y, axis=axis, error=sd.Error.Absolute)
         assert np.all(np.equal(z, z_abs))
+        assert np.all(np.equal(e, e_ref_abs))
+
+
+def test_absolute_error_zero():
+    """
+    Test compute_z when X is an array and Y is an array with ndim = X.ndim - 1
+    """
+    x = np.array([0.1, 1, 10])
+    y = np.array(0.0)
+
+    z_abs = x - y
+    e_ref_abs = 1
+
+    z, e = _compute_z(x, y, axis=0, error=sd.Error.Absolute)
+
+    assert np.all(np.equal(z, z_abs))
+    assert np.all(np.equal(e, e_ref_abs))

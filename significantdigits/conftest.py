@@ -42,7 +42,7 @@ class RunMetricDigitsTest:
     def __init__(self, metric):
         self.setup = Setup()
         self.metric = self.check_metric(metric)
-        self.basiss = [2, 10]
+        self.basis = [2, 10]
         self.methods = significantdigits.Method
         self.errors = significantdigits.Error
         self.writer = None
@@ -85,7 +85,7 @@ class RunMetricDigitsTest:
         with open(filename, "a", encoding="utf-8") as fo:
             self.writer = csv.writer(fo)
             self.writer.writerow(header)
-            configurations = itertools.product(self.basiss, self.methods, self.errors)
+            configurations = itertools.product(self.basis, self.methods, self.errors)
             for basis, method, error in configurations:
                 metric = self.compute_metric(x, ref, error, method, basis)
                 self.save_result(metric, error, method, basis)
