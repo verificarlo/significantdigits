@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import numpy as np
+import significantdigits as sd
 
 
 class TestCramer:
@@ -30,3 +31,88 @@ class TestCramer:
         x = load.load(self.filename)
         ref = np.array([2, -2])
         run_contributing_digits.run(self.filename, x, ref)
+
+
+class TestCramerPaper:
+    """Comparing with the Cramer example in the paper"""
+
+    filename = "cramer_paper"
+
+    confidence = 0.95
+    probability_significant = 0.99
+    probability_contributing = 0.51
+
+    sd_reference_values = {
+        ("CNH", "Absolute"): 26.094599393993263,
+        ("CNH", "Relative"): 27.094599370144074,
+        ("General", "Absolute"): 25,
+        ("General", "Relative"): 26,
+    }
+
+    cd_reference_values = {
+        ("CNH", "Absolute"): 31.777744510355838,
+        ("CNH", "Relative"): 32.77774448650665,
+        ("General", "Absolute"): 25,
+        ("General", "Relative"): 26,
+    }
+
+    def _get_values(self):
+        x = np.loadtxt("data/cramer-x0-10000.txt")
+        y = np.mean(x, axis=0)
+        return x, y
+
+    def test_cnh_absolute(self):
+        """Test CNH method with absolute error"""
+        x, y = self._get_values()
+        s = sd.significant_digits(
+            x,
+            reference=y,
+            method=sd.Method.CNH,
+            error=sd.Error.Absolute,
+            probability=self.probability_significant,
+            confidence=self.confidence,
+        )
+        assert np.isclose(s, self.sd_reference_values[("CNH", "Absolute")], rtol=1e-5)
+
+    def test_cnh_relative(self):
+        """Test CNH method with relative error"""
+        x, y = self._get_values()
+        s = sd.significant_digits(
+            x,
+            reference=y,
+            method=sd.Method.CNH,
+            error=sd.Error.Relative,
+            probability=self.probability_significant,
+            confidence=self.confidence,
+        )
+        assert np.isclose(s, self.sd_reference_values[("CNH", "Relative")], rtol=1e-5)
+
+    def test_general_absolute(self):
+        """Test General method with absolute error"""
+        x, y = self._get_values()
+        s = sd.significant_digits(
+            x,
+            reference=y,
+            method=sd.Method.General,
+            error=sd.Error.Absolute,
+            probability=self.probability_significant,
+            confidence=self.confidence,
+        )
+        assert np.isclose(
+            s, self.sd_reference_values[("General", "Absolute")], rtol=1e-5
+        )
+
+    def test_general_relative(self):
+        """Test General method with relative error"""
+        x, y = self._get_values()
+        s = sd.significant_digits(
+            x,
+            reference=y,
+            method=sd.Method.General,
+            error=sd.Error.Relative,
+            probability=self.probability_significant,
+            confidence=self.confidence,
+        )
+        assert np.isclose(
+            s, self.sd_reference_values[("General", "Relative")], rtol=1e-5
+        )
