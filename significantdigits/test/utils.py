@@ -33,7 +33,7 @@ class Setup(metaclass=Singleton):
 
     def prepare_outputs_dir(self):
         shutil.rmtree(self.outputs_dir, ignore_errors=True)
-        os.mkdir(self.outputs_dir)
+        os.makedirs(self.outputs_dir, exist_ok=True)
 
     def get_numpy_data_path(self, filename):
         filename = os.path.extsep.join((filename, "npy"))
