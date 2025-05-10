@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 import typing
 import warnings
 from enum import Enum, auto
@@ -10,6 +9,29 @@ import numpy as np
 import numpy.typing as npt
 import scipy
 import scipy.stats
+from icecream import ic
+import os
+
+
+def _get_verbose_mode():
+    """@private"""
+    verbose = os.getenv("SD_VERBOSE", "0")
+    if verbose.lower() in ("1", "true", "yes", "on"):
+        return True
+    return False
+
+
+_VERBOSE_MODE = _get_verbose_mode()
+ic.configureOutput(
+    includeContext=True,
+    prefix="sd",
+)
+
+# Configure ic for debugging
+if _VERBOSE_MODE:
+    ic.enable()
+else:
+    ic.disable()
 
 __all__ = [
     "significant_digits",
@@ -283,15 +305,16 @@ def _get_significant_size(
 
 def _fill_where(
     x: InternalArrayType, fill_value: InternalArrayType, mask: npt.NDArray
-) -> None:
+) -> InternalArrayType:
     """Fill x with fill_value where mask is True"""
     if x.ndim == 0:
-        if ~mask:
+        if mask:
             x = fill_value
     elif fill_value.ndim == 0:
         x[mask] = fill_value
     else:
         x[mask] = fill_value[mask]
+    return x
 
 
 def _compute_scaling_factor(
@@ -496,7 +519,7 @@ def _significant_digits_cnh(
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
     z_eps = np.max(np.abs(z), axis=axis)
-    _fill_where(std, fill_value=z_eps, mask=std == 0)
+    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
     # We need to mask the std where z_eps == 0
     # In that case, we have no variance and z = 0
     std0 = np.ma.array(std, mask=(z_eps == 0))
@@ -565,19 +588,22 @@ def _significant_digits_general(
     )
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = _get_significant_size(z, dtype=dtype)
-    significant = np.full(shape=sample_shape, fill_value=max_bits + (e - 1))
+    significant = np.full(shape=sample_shape, fill_value=0)
     mask = np.full_like(significant, True, dtype=bool)
     z = np.abs(z)
 
-    if np.all(z <= 0):
-        return significant
+    ic(z)
 
     # Compute successes
     for k in range(0, max_bits + 1):
-        kth = k + (e - 1.0)
+        ic(significant, mask)
+
+        kth = k - (e - 1.0)
         successes = np.min(z <= 2**-kth, axis=axis)
         mask = np.logical_and(mask, successes)
-        _fill_where(significant, fill_value=kth, mask=mask)
+        significant = _fill_where(significant, fill_value=kth, mask=mask)
+
+        ic(kth, 2**-kth, successes, significant, mask)
 
         if ~mask.all():
             break
@@ -768,7 +794,7 @@ def _contributing_digits_cnh(
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
     z_eps = np.max(np.abs(z), axis=axis)
-    _fill_where(std, fill_value=z_eps, mask=std == 0)
+    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
     # We need to mask the std where z_eps == 0
     # In that case, we have no variance and z = 0
     std0 = np.ma.array(std, mask=(z_eps == 0))
@@ -779,8 +805,10 @@ def _contributing_digits_cnh(
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
     contributing = -np.ma.log2(std0) + (e - 1) - delta_chn
-    max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
-    contributing = contributing.filled(fill_value=max_bits - delta_chn)
+    max_bits = _get_significant_size(z, dtype=dtype) - (e - 1)
+    if contributing.ndim == 0:
+        contributing = np.ma.array(contributing, mask=std0.mask)
+    contributing = np.ma.filled(contributing, fill_value=max_bits - delta_chn)
     return contributing
 
 
@@ -853,7 +881,7 @@ def _contributing_digits_general(
 
         successes = np.sum(np.mod(kth_bit_z, 2), axis=axis) == 0
         mask = np.logical_and(mask, successes)
-        _fill_where(contributing, fill_value=kth, mask=mask)
+        contributing = _fill_where(contributing, fill_value=kth, mask=mask)
 
         if ~mask.all():
             break
