@@ -24,7 +24,7 @@ def _get_verbose_mode():
 _VERBOSE_MODE = _get_verbose_mode()
 ic.configureOutput(
     includeContext=True,
-    prefix="sd",
+    prefix="sd| ",
 )
 
 # Configure ic for debugging
@@ -592,16 +592,16 @@ def _significant_digits_general(
     mask = np.full_like(significant, True, dtype=bool)
     z = np.abs(z)
 
-    ic(z)
+    ic(z, reference, e)
 
     # Compute successes
     for k in range(0, max_bits + 1):
-        ic(significant, mask)
+        ic(k, significant, mask, z.max(axis=axis))
 
         kth = k - (e - 1.0)
-        successes = np.min(z <= 2**-kth, axis=axis)
+        successes = np.min(z <= 2 ** (-kth), axis=axis)
         mask = np.logical_and(mask, successes)
-        significant = _fill_where(significant, fill_value=kth, mask=mask)
+        significant[mask] = k
 
         ic(kth, 2**-kth, successes, significant, mask)
 
@@ -881,7 +881,7 @@ def _contributing_digits_general(
 
         successes = np.sum(np.mod(kth_bit_z, 2), axis=axis) == 0
         mask = np.logical_and(mask, successes)
-        contributing = _fill_where(contributing, fill_value=kth, mask=mask)
+        contributing[mask] = k
 
         if ~mask.all():
             break
