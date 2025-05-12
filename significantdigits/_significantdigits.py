@@ -5,12 +5,17 @@ import warnings
 from enum import Enum, auto
 from typing import Optional, Tuple, Union
 
+from sphinx import ret
+from sympy import O
+
 import numpy as np
 import numpy.typing as npt
 import scipy
 import scipy.stats
 from icecream import ic
 import os
+from significantdigits._significantdigits import contributing_digits, significant_digits
+from significantdigits.test.test_higham import setup
 
 
 def _get_verbose_mode():
@@ -194,6 +199,8 @@ Types allowing for `array` in significant_digits and contributing_digits functio
 
 """
 
+OutputType = npt.NDArray[np.number]
+r"""Valid output type"""
 
 ReferenceType = Union[npt.ArrayLike, np.number]
 r"""Valid reference inputs type (np.ndarray, tuple, list, float, int)
@@ -259,7 +266,7 @@ def _preprocess_inputs(
     return (preprocessed_array, preprocessed_reference)
 
 
-def change_basis(array: InputType, basis: int) -> InputType:
+def change_basis(array: InputType, basis: int) -> OutputType:
     """Changes basis from binary to `basis` representation
 
     Parameters
@@ -528,7 +535,7 @@ def _significant_digits_cnh(
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
     significant = -np.ma.log2(std0) + (e - 1) - delta_chn
     std0 = np.ma.array(std, mask=std == 0)
-    max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
+    max_bits = _get_significant_size(z, dtype=dtype)
     if significant.ndim == 0:
         significant = np.ma.array(significant, mask=std0.mask)
     significant = significant.filled(fill_value=max_bits - delta_chn)
@@ -622,7 +629,7 @@ def significant_digits(
     confidence: float = _default_confidence[Metric.Significant],
     shuffle_samples: bool = False,
     dtype: Optional[npt.DTypeLike] = None,
-) -> npt.ArrayLike:
+) -> OutputType:
     r"""Compute significant digits
 
     This function calculates with a certain probability the number of
@@ -805,7 +812,7 @@ def _contributing_digits_cnh(
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
     contributing = -np.ma.log2(std0) + (e - 1) - delta_chn
-    max_bits = _get_significant_size(z, dtype=dtype) - (e - 1)
+    max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
     if contributing.ndim == 0:
         contributing = np.ma.array(contributing, mask=std0.mask)
     contributing = np.ma.filled(contributing, fill_value=max_bits - delta_chn)
@@ -900,7 +907,7 @@ def contributing_digits(
     confidence: float = _default_confidence[Metric.Contributing],
     shuffle_samples: bool = False,
     dtype: Optional[npt.DTypeLike] = None,
-) -> npt.ArrayLike:
+) -> OutputType:
     r"""Compute contributing digits
 
     This function computes with a certain probability the number of bits
@@ -1111,3 +1118,136 @@ def minimum_number_of_trials(probability: float, confidence: float) -> int:
     alpha = 1 - confidence
     n = np.log(alpha) / np.log(probability)
     return int(np.ceil(n))
+
+
+class Digits:
+    r"""Formatter for the significant digits and contributing digits.
+
+    This class provides functionality to format an array with its significant
+    and contributing digits, allowing for a detailed representation of numerical
+    precision.
+
+        The array to format.
+    significant_digits : InternalArrayType
+        The array containing the significant digits for each element.
+    contributing_digits : InternalArrayType
+        The array containing the contributing digits for each element.
+
+    Notes
+    -----
+    The significant digits and contributing digits are calculated based on the
+    precision of the input data. The following formulas are used:
+
+    For an absolute error:
+    .. math::
+        k = -\log_2 \sigma
+
+    At 99% confidence:
+    .. math::
+        \text{Absolute Error: } k + (e_y - 1) + 4.318108 \text{ bits, annotated as } \pm 2^{k + (e_y - 1) - 1.365037}
+
+    For a relative error:
+    .. math::
+        \text{Relative Error: } k + 4.318108 \text{ bits, annotated as } \pm 2^{k - 1.365037} \times y
+
+    Methods
+    format(precision: int = 2) -> str
+        Format the array with significant and contributing digits.
+    """
+
+    def format(
+        self,
+        array: InputType,
+        reference: Optional[ReferenceType] = None,
+        axis: int = 0,
+        error: Union[str, Error] = Error.Relative,
+        method: Union[str, Method] = Method.CNH,
+        probability: float = _default_probability[Metric.Contributing],
+        confidence: float = _default_confidence[Metric.Contributing],
+        shuffle_samples: bool = False,
+        dtype: Optional[npt.DTypeLike] = None,
+    ) -> np.ndarray:
+        """Format the array with significant and contributing digits
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        str
+            Formatted string representation of the array
+        """
+
+        sd = significant_digits(
+            array,
+            reference=reference,
+            axis=axis,
+            basis=2,
+            error=error,
+            method=method,
+            probability=probability,
+            confidence=confidence,
+            shuffle_samples=shuffle_samples,
+            dtype=dtype,
+        )
+        cd = contributing_digits(
+            array,
+            reference=reference,
+            axis=axis,
+            basis=2,
+            error=error,
+            method=method,
+            probability=probability,
+            confidence=confidence,
+            shuffle_samples=shuffle_samples,
+            dtype=dtype,
+        )
+
+        # Format the array with significant and contributing digits
+        sd = np.floor(sd)
+        cd = np.ceil(cd)
+
+        def print_significant_absolute(x, c):
+            return np.format_float_positional(
+                x, precision=int(c), unique=True, trim="k", sign=True
+            )
+
+        def print_error_absolute(x, c):
+            return np.format_float_positional(
+                x, precision=int(c), unique=False, trim="0", sign=True
+            )
+
+        def print_significant_relative(x, c):
+            return np.format_float_scientific(
+                x, precision=int(c), unique=True, trim="k", sign=True
+            )
+
+        def print_error_relative(x, c):
+            return np.format_float_scientific(
+                x, precision=int(c), unique=False, trim="0", sign=True
+            )
+
+        # TODO: Support for axis > 0 and dimensions > 1
+
+        if Error.is_absolute(error):
+            formatted_array = np.array(
+                [
+                    print_significant_absolute(x, c)
+                    + " ± "
+                    + print_error_absolute(2**s, c)
+                    for x, c, s in zip(np.array(array), sd, cd)
+                ]
+            )
+        elif Error.is_relative(error):
+            formatted_array = np.array(
+                [
+                    print_significant_relative(x, c)
+                    + " ± "
+                    + print_error_relative(x, s * y)
+                    for x, y, c, s in zip(np.array(array), np.array(reference), sd, cd)
+                ]
+            )
+        else:
+            raise SignificantDigitsException(f"Unknown error {error}")
+
+        return formatted_array
