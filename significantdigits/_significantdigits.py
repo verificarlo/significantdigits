@@ -1,21 +1,18 @@
 from __future__ import annotations
 
+import os
 import typing
 import warnings
 from enum import Enum, auto
 from typing import Optional, Tuple, Union
-
-from sphinx import ret
-from sympy import O
 
 import numpy as np
 import numpy.typing as npt
 import scipy
 import scipy.stats
 from icecream import ic
-import os
-from significantdigits._significantdigits import contributing_digits, significant_digits
-from significantdigits.test.test_higham import setup
+from significantdigits._significantdigits import (contributing_digits,
+                                                  significant_digits)
 
 
 def _get_verbose_mode():
