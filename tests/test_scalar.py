@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import numpy as np
-from significantdigits.test.utils import Setup
+from tests.utils import Setup
 
 setup = Setup()
 

@@ -11,8 +11,6 @@ import numpy.typing as npt
 import scipy
 import scipy.stats
 from icecream import ic
-from significantdigits._significantdigits import (contributing_digits,
-                                                  significant_digits)
 
 
 def _get_verbose_mode():
@@ -214,25 +212,21 @@ def _assert_is_valid_metric(metric: Union[Metric, str]) -> None:  # type: ignore
     if Metric.is_significant(metric) or Metric.is_contributing(metric):
         return
 
-    raise TypeError(
-        f"provided invalid metric {metric}: " f"must be one of {list(Metric)}"
-    )
+    raise TypeError(f"provided invalid metric {metric}: must be one of {list(Metric)}")
 
 
 def _assert_is_valid_method(method: Union[Method, str]) -> None:
     if Method.is_cnh(method) or Method.is_general(method):
         return
 
-    raise TypeError(
-        f"provided invalid method {method}: " f"must be one of {list(Method)}"
-    )
+    raise TypeError(f"provided invalid method {method}: must be one of {list(Method)}")
 
 
 def _assert_is_valid_error(error: Union[Error, str]) -> None:
     if Error.is_absolute(error) or Error.is_relative(error):
         return
 
-    raise TypeError(f"provided invalid error {error}: " f"must be one of {list(Error)}")
+    raise TypeError(f"provided invalid error {error}: must be one of {list(Error)}")
 
 
 def _assert_is_probability(probability: float) -> None:
@@ -248,7 +242,7 @@ def _assert_is_confidence(confidence: float) -> None:
 def _assert_is_valid_inputs(array: InputType) -> None:
     if not isinstance(array, (np.ndarray, list, tuple)):
         raise TypeError(
-            f"array must be of type {InputType}, " f"not {type(array).__name__}"
+            f"array must be of type {InputType}, not {type(array).__name__}"
         )
     if isinstance(array, np.ndarray) and array.ndim == 0:
         raise TypeError("array must be at least 1D")
@@ -1117,7 +1111,17 @@ def minimum_number_of_trials(probability: float, confidence: float) -> int:
     return int(np.ceil(n))
 
 
-class Digits:
+def print_digits(
+    array: InputType,
+    reference: Optional[ReferenceType] = None,
+    axis: int = 0,
+    error: Union[str, Error] = Error.Relative,
+    method: Union[str, Method] = Method.CNH,
+    probability: float = _default_probability[Metric.Contributing],
+    confidence: float = _default_confidence[Metric.Contributing],
+    shuffle_samples: bool = False,
+    dtype: Optional[npt.DTypeLike] = None,
+) -> np.ndarray:
     r"""Formatter for the significant digits and contributing digits.
 
     This class provides functionality to format an array with its significant
@@ -1152,99 +1156,85 @@ class Digits:
         Format the array with significant and contributing digits.
     """
 
-    def format(
-        self,
-        array: InputType,
-        reference: Optional[ReferenceType] = None,
-        axis: int = 0,
-        error: Union[str, Error] = Error.Relative,
-        method: Union[str, Method] = Method.CNH,
-        probability: float = _default_probability[Metric.Contributing],
-        confidence: float = _default_confidence[Metric.Contributing],
-        shuffle_samples: bool = False,
-        dtype: Optional[npt.DTypeLike] = None,
-    ) -> np.ndarray:
-        """Format the array with significant and contributing digits
+    """Format the array with significant and contributing digits
 
-        Parameters
-        ----------
+    Parameters
+    ----------
 
-        Returns
-        -------
-        str
-            Formatted string representation of the array
-        """
+    Returns
+    -------
+    str
+        Formatted string representation of the array
+    """
 
-        sd = significant_digits(
-            array,
-            reference=reference,
-            axis=axis,
-            basis=2,
-            error=error,
-            method=method,
-            probability=probability,
-            confidence=confidence,
-            shuffle_samples=shuffle_samples,
-            dtype=dtype,
-        )
-        cd = contributing_digits(
-            array,
-            reference=reference,
-            axis=axis,
-            basis=2,
-            error=error,
-            method=method,
-            probability=probability,
-            confidence=confidence,
-            shuffle_samples=shuffle_samples,
-            dtype=dtype,
+    sd = significant_digits(
+        array,
+        reference=reference,
+        axis=axis,
+        basis=2,
+        error=error,
+        method=method,
+        probability=probability,
+        confidence=confidence,
+        shuffle_samples=shuffle_samples,
+        dtype=dtype,
+    )
+    cd = contributing_digits(
+        array,
+        reference=reference,
+        axis=axis,
+        basis=2,
+        error=error,
+        method=method,
+        probability=probability,
+        confidence=confidence,
+        shuffle_samples=shuffle_samples,
+        dtype=dtype,
+    )
+
+    # Format the array with significant and contributing digits
+    sd = np.floor(sd)
+    cd = np.ceil(cd)
+
+    def print_significant_absolute(x, c):
+        return np.format_float_positional(
+            x, precision=int(c), unique=True, trim="k", sign=True
         )
 
-        # Format the array with significant and contributing digits
-        sd = np.floor(sd)
-        cd = np.ceil(cd)
+    def print_error_absolute(x, c):
+        return np.format_float_positional(
+            x, precision=int(c), unique=False, trim="0", sign=True
+        )
 
-        def print_significant_absolute(x, c):
-            return np.format_float_positional(
-                x, precision=int(c), unique=True, trim="k", sign=True
-            )
+    def print_significant_relative(x, c):
+        return np.format_float_scientific(
+            x, precision=int(c), unique=True, trim="k", sign=True
+        )
 
-        def print_error_absolute(x, c):
-            return np.format_float_positional(
-                x, precision=int(c), unique=False, trim="0", sign=True
-            )
+    def print_error_relative(x, c):
+        return np.format_float_scientific(
+            x, precision=int(c), unique=False, trim="0", sign=True
+        )
 
-        def print_significant_relative(x, c):
-            return np.format_float_scientific(
-                x, precision=int(c), unique=True, trim="k", sign=True
-            )
+    # TODO: Support for axis > 0 and dimensions > 1
 
-        def print_error_relative(x, c):
-            return np.format_float_scientific(
-                x, precision=int(c), unique=False, trim="0", sign=True
-            )
+    if Error.is_absolute(error):
+        formatted_array = np.array(
+            [
+                print_significant_absolute(x, c) + " ± " + print_error_absolute(2**s, c)
+                for x, c, s in zip(np.array(array_slice), sd, cd) for array_slice in 
+            ]
+        )
+    elif Error.is_relative(error):
+        formatted_array = np.array(
+            [
+                print_significant_relative(x, c)
+                + " ± "
+                + print_error_relative(x, s * y)
+                for x, y, c, s in zip(np.array(array), np.array(reference), sd, cd)
+            ]
+        )
+    else:
+        raise SignificantDigitsException(f"Unknown error {error}")
 
-        # TODO: Support for axis > 0 and dimensions > 1
-
-        if Error.is_absolute(error):
-            formatted_array = np.array(
-                [
-                    print_significant_absolute(x, c)
-                    + " ± "
-                    + print_error_absolute(2**s, c)
-                    for x, c, s in zip(np.array(array), sd, cd)
-                ]
-            )
-        elif Error.is_relative(error):
-            formatted_array = np.array(
-                [
-                    print_significant_relative(x, c)
-                    + " ± "
-                    + print_error_relative(x, s * y)
-                    for x, y, c, s in zip(np.array(array), np.array(reference), sd, cd)
-                ]
-            )
-        else:
-            raise SignificantDigitsException(f"Unknown error {error}")
-
-        return formatted_array
+    return formatted_array
