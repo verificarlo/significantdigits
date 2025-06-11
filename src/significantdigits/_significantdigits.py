@@ -1183,7 +1183,7 @@ def print_digits(
         array,
         reference=reference,
         axis=axis,
-        basis=2,
+        basis=10,
         error=error,
         method=method,
         probability=probability,
@@ -1193,47 +1193,86 @@ def print_digits(
     )
 
     # Format the array with significant and contributing digits
-    sd = np.floor(sd)
+    # sd = np.floor(sd)
     cd = np.ceil(cd)
+
+    ic(sd, cd)
 
     def print_significant_absolute(x, c):
         return np.format_float_positional(
-            x, precision=int(c), unique=True, trim="k", sign=True
+            x,
+            precision=max(0, int(c)),
+            unique=True,
+            fractional=False,
+            trim="k",
+            sign=True,
         )
 
     def print_error_absolute(x, c):
-        return np.format_float_positional(
-            x, precision=int(c), unique=False, trim="0", sign=True
+        return np.format_float_scientific(
+            x, precision=int(c), unique=False, trim="0", sign=False
         )
 
     def print_significant_relative(x, c):
-        return np.format_float_scientific(
-            x, precision=int(c), unique=True, trim="k", sign=True
+        return np.format_float_positional(
+            x,
+            precision=max(0, int(c)),
+            unique=True,
+            fractional=False,
+            trim="k",
+            sign=True,
         )
 
     def print_error_relative(x, c):
         return np.format_float_scientific(
-            x, precision=int(c), unique=False, trim="0", sign=True
+            x, precision=int(c), unique=False, trim="0", sign=False
         )
 
-    # TODO: Support for axis > 0 and dimensions > 1
+    # Create output array with same shape as input
+    formatted_array = np.empty(array.shape, dtype=object)
 
     if Error.is_absolute(error):
-        formatted_array = np.array(
-            [
-                print_significant_absolute(x, c) + " ± " + print_error_absolute(2**s, c)
-                for x, c, s in zip(np.array(array_slice), sd, cd) for array_slice in 
-            ]
-        )
+        # Use nditer to iterate over all elements while preserving multi-dimensional structure
+        with np.nditer(
+            [array, sd, cd, formatted_array],
+            flags=["multi_index", "refs_ok"],
+            op_flags=[["readonly"], ["readonly"], ["readonly"], ["writeonly"]],
+        ) as it:
+            for x_val, sd_val, cd_val, out_val in it:
+                idx = it.multi_index
+                significant_str = print_significant_absolute(
+                    x_val.item(), cd_val.item()
+                )
+                error_str = print_error_absolute(2 ** -sd_val.item(), cd_val.item())
+                formatted_array[idx] = f"{significant_str} ± {error_str}"
+
     elif Error.is_relative(error):
-        formatted_array = np.array(
-            [
-                print_significant_relative(x, c)
-                + " ± "
-                + print_error_relative(x, s * y)
-                for x, y, c, s in zip(np.array(array), np.array(reference), sd, cd)
-            ]
-        )
+        if reference is None:
+            reference = array  # Use array itself as reference if none provided
+
+        reference = np.asarray(reference)
+
+        # Use nditer for relative error formatting
+        with np.nditer(
+            [array, reference, sd, cd, formatted_array],
+            flags=["multi_index", "refs_ok"],
+            op_flags=[
+                ["readonly"],
+                ["readonly"],
+                ["readonly"],
+                ["readonly"],
+                ["writeonly"],
+            ],
+        ) as it:
+            for x_val, ref_val, sd_val, cd_val, out_val in it:
+                idx = it.multi_index
+                significant_str = print_significant_relative(
+                    x_val.item(), cd_val.item()
+                )
+                error_str = print_error_relative(
+                    ref_val.item() * (2 ** -sd_val.item()), cd_val.item()
+                )
+                formatted_array[idx] = f"{significant_str} ± {error_str}"
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
 
