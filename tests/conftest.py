@@ -8,7 +8,7 @@ import pytest
 
 import significantdigits
 import significantdigits.args
-from significantdigits.test.utils import Setup
+from tests.utils import Setup
 
 
 class Save:
@@ -51,12 +51,7 @@ class RunMetricDigitsTest:
         if metric in self.available_metrics:
             return metric
         else:
-            print(
-                (
-                    f"Unknown metric {metric}."
-                    f" Must be one of {self.available_metrics}"
-                )
-            )
+            print((f"Unknown metric {metric}. Must be one of {self.available_metrics}"))
             sys.exit(1)
 
     def compute_significant_digits(self, x, ref, error, method, basis):
