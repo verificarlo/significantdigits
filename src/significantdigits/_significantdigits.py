@@ -1111,7 +1111,7 @@ def minimum_number_of_trials(probability: float, confidence: float) -> int:
     return int(np.ceil(n))
 
 
-def print_digits(
+def format_uncertainty(
     array: InputType,
     reference: Optional[ReferenceType] = None,
     axis: int = 0,
@@ -1121,50 +1121,73 @@ def print_digits(
     confidence: float = _default_confidence[Metric.Contributing],
     shuffle_samples: bool = False,
     dtype: Optional[npt.DTypeLike] = None,
-) -> np.ndarray:
-    r"""Formatter for the significant digits and contributing digits.
+    as_tuple: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    r"""Format an array with its significant and contributing digits.
 
-    This class provides functionality to format an array with its significant
-    and contributing digits, allowing for a detailed representation of numerical
-    precision.
+    This function computes and formats each element of the input array
+    to display its value along with its uncertainty, based on the calculated
+    significant and contributing digits. The output provides a human-readable
+    representation of numerical precision, using the appropriate number of
+    digits and error notation.
 
-        The array to format.
-    significant_digits : InternalArrayType
-        The array containing the significant digits for each element.
-    contributing_digits : InternalArrayType
-        The array containing the contributing digits for each element.
+    Parameters
+    ----------
+    array : InputType
+        The array of values to format.
+    reference : ReferenceType or None, optional
+        The reference values for error computation. If None, the array is split
+        and compared internally.
+    axis : int, default=0
+        Axis along which the digits are computed.
+    error : Error or str, default=Error.Relative
+        The error metric to use ('absolute' or 'relative').
+    method : Method or str, default=Method.CNH
+        The statistical method for digit estimation.
+    probability : float, default=0.51
+        Probability for the contributing digits result.
+    confidence : float, default=0.95
+        Confidence level for the digits result.
+    shuffle_samples : bool, default=False
+        Whether to shuffle samples when splitting the array.
+    dtype : dtype_like or None, default=None
+        Data type used for computation.
+    as_tuple : bool, default=False
+        If True, returns a tuple of value and error.
+        If False, returns a formatted string for each element.
+
+    Returns
+    -------
+    np.ndarray
+        An array of formatted strings, each showing the value and its uncertainty.
+    or
+    Tuple[np.ndarray, np.ndarray]
+        If `as_tuple` is True, returns a tuple containing two arrays:
+        the first with formatted values and the second with formatted errors.
 
     Notes
     -----
-    The significant digits and contributing digits are calculated based on the
-    precision of the input data. The following formulas are used:
+    The significant and contributing digits are computed according to the
+    selected error metric and statistical method. The formatted output
+    displays each value with its uncertainty, using either absolute or
+    relative error notation, e.g.:
+        1.234 ± 0.005
+    or
+        1.234 ± 0.4e-2
 
-    For an absolute error:
-    .. math::
-        k = -\log_2 \sigma
+    For absolute error:
+        The uncertainty is shown as ± 2^{-s}, where s is the number of significant digits.
+    For relative error:
+        The uncertainty is shown as ± y·2^{-s}, where y is the reference value.
 
-    At 99% confidence:
-    .. math::
-        \text{Absolute Error: } k + (e_y - 1) + 4.318108 \text{ bits, annotated as } \pm 2^{k + (e_y - 1) - 1.365037}
-
-    For a relative error:
-    .. math::
-        \text{Relative Error: } k + 4.318108 \text{ bits, annotated as } \pm 2^{k - 1.365037} \times y
-
-    Methods
-    format(precision: int = 2) -> str
-        Format the array with significant and contributing digits.
+    References
+    ----------
+    - Sohier, D., Castro, P. D. O., Févotte, F., Lathuilière, B., Petit, E., & Jamond, O. (2021).
+      Confidence intervals for stochastic arithmetic. ACM Transactions on Mathematical Software (TOMS), 47(2), 1-33.
     """
 
     """Format the array with significant and contributing digits
 
-    Parameters
-    ----------
-
-    Returns
-    -------
-    str
-        Formatted string representation of the array
     """
 
     sd = significant_digits(
@@ -1202,6 +1225,7 @@ def print_digits(
         return np.format_float_positional(
             x,
             precision=max(0, int(c)),
+            min_digits=max(0, int(c)),
             unique=True,
             fractional=False,
             trim="k",
@@ -1210,13 +1234,18 @@ def print_digits(
 
     def print_error_absolute(x, c):
         return np.format_float_scientific(
-            x, precision=max(0, int(c)), unique=False, trim="0", sign=False
+            x,
+            precision=max(0, int(c)),
+            unique=False,
+            trim="0",
+            sign=False,
         )
 
     def print_significant_relative(x, c):
         return np.format_float_positional(
             x,
             precision=max(0, int(c)),
+            min_digits=max(0, int(c)),
             unique=True,
             fractional=False,
             trim="k",
@@ -1229,7 +1258,10 @@ def print_digits(
         )
 
     # Create output array with same shape as input
+    array, _ = _preprocess_inputs(array, reference)
     formatted_array = np.empty(array.shape, dtype=object)
+    value_array = np.empty(array.shape, dtype=_internal_dtype)
+    error_array = np.empty(array.shape, dtype=_internal_dtype)
 
     if Error.is_absolute(error):
         # Use nditer to iterate over all elements while preserving multi-dimensional structure
@@ -1244,7 +1276,11 @@ def print_digits(
                     x_val.item(), cd_val.item()
                 )
                 error_str = print_error_absolute(2 ** -sd_val.item(), cd_val.item())
-                formatted_array[idx] = f"{significant_str} ± {error_str}"
+                if as_tuple:
+                    value_array[idx] = significant_str
+                    error_array[idx] = error_str
+                else:
+                    formatted_array[idx] = f"{significant_str} ± {error_str}"
 
     elif Error.is_relative(error):
         if reference is None:
@@ -1272,8 +1308,16 @@ def print_digits(
                 error_str = print_error_relative(
                     ref_val.item() * (2 ** -sd_val.item()), cd_val.item()
                 )
-                formatted_array[idx] = f"{significant_str} ± {error_str}"
+                if as_tuple:
+                    value_array[idx] = significant_str
+                    error_array[idx] = error_str
+                else:
+                    formatted_array[idx] = f"{significant_str} ± {error_str}"
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
 
-    return formatted_array
+    if as_tuple:
+        # Return a tuple of value and error arrays
+        return value_array, error_array
+    else:
+        return formatted_array

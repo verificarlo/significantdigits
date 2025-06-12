@@ -1,7 +1,23 @@
-# significantdigits package - v0.3.0
+# significantdigits package - v0.3.1
 
 Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
+
+## Table of Contents
+
+- [Getting started](#getting-started)
+- [Installation](#installation)
+- [Advanced Usage](#advanced-usage)
+    - [Inputs types](#inputs-types)
+    - [Z computation](#z-computation)
+    - [Methods](#methods)
+    - [Significant digits](#significant-digits)
+    - [Contributing digits](#contributing-digits)
+    - [Formatting Results with `format_uncertainty`](#formatting-results-with-format_uncertainty)
+    - [Utils function](#utils-function)
+        - [`probability_estimation_general`](#probability_estimation_general)
+        - [`minimum_number_of_trials`](#minimum_number_of_trials)
+- [License](#license)
 
 ## Getting started
 
@@ -33,6 +49,23 @@ If the reference is unknown, one can use the sample average:
 >>> sd.significant_digits(X, reference=np.mean(X))
 >>> 51.02329058847853
 ```
+
+To print the result as mean +/- error, use the format_uncertainty function:
+
+```python
+>>> print(sd.format_uncertainty(X, reference=1))
+>>> ['+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16'
+     '+1.00000000000000022 ± 1.119313369151395181e-16'
+     '+1.00000000000000022 ± 1.119313369151395181e-16'
+     '+1.00000000000000000 ± 1.119313369151395181e-16']
+```
+
 ## Installation
 
 ```bash
@@ -46,6 +79,10 @@ python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.g
 # or if you don't have 'git' installed
 python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
 ```
+
+## Examples
+
+The [`examples`](./examples) directory contains several example scripts demonstrating how to use the `significantdigits` package in different scenarios. You can find practical usage patterns, sample data, and step-by-step guides to help you get started or deepen your understanding of the package's features. 
 
 ## Advanced Usage
 
@@ -80,24 +117,25 @@ _compute_z(array: InternalArrayType,
 
     X = array
     Y = reference
+
     Three cases:
-        - Y is none
-            The case when X = Y
-            We split X in two and set one group to X and the other to Y
-        - X.ndim == Y.ndim
-            X and Y have the same dimension
-            It it the case when Y is a random variable
-        - X.ndim - 1 == Y.ndim or Y.ndim == 0
-            Y is a scalar value
+    - Y is none
+        - The case when X = Y
+        - We split X in two and set one group to X and the other to Y
+    - X.ndim == Y.ndim
+        X and Y have the same dimension
+        It it the case when Y is a random variable
+    - X.ndim - 1 == Y.ndim or Y.ndim == 0
+        Y is a scalar value
 
     Parameters
     ----------
     array : InternalArrayType
         The random variable
-    reference : Optional[InternalArrayType]
+    reference : InternalArrayType | None
         The reference to compare against
     error : Error | str
-        The error function to compute Z
+        The error function to use to compute error between array and reference.
     axis : int, default=0
         The axis or axes along which compute Z
     shuflle_samples : bool, default=False
@@ -107,6 +145,11 @@ _compute_z(array: InternalArrayType,
     -------
     array : InternalArrayType
         The result of Z following the error method choose
+    scaling_factor : InternalArrayType
+        The scaling factor to compute the significant digits
+        Useful for absolute error to normalizing the number of significant digits
+        ``When Y is a random variable, we choose e = ⎣log_2|E[Y]|⎦+1.``p.10:9
+
 ```
 
 ### Methods
@@ -237,6 +280,42 @@ contributing_digits(array: InputType,
         array_like containing contributing digits
 
 ```
+
+### Formatting Results with `format_uncertainty`
+
+Formats the results as mean ± error for each sample.
+
+```python
+format_uncertainty(array: InputType,
+                   reference: ReferenceType | None = None,
+                   axis: int = 0,
+                   error: Error | str = Error.Relative,
+                   dtype: DTypeLike | None = None
+                   ) -> list[str]
+    Format the uncertainty of each sample as a string
+
+    This function returns a list of strings representing each value in the input array
+    formatted as "mean ± error", where the error is computed with respect to the reference.
+
+    Parameters
+    ----------
+    array: InputType
+        Array of values to format
+    reference: ReferenceType | None, optional=None
+        Reference value(s) for error computation
+    axis: int, optional=0
+        Axis along which to compute the mean and error
+    error: Error | str, optional=Error.Relative
+        Error function to use for uncertainty calculation
+    dtype: DTypeLike | None, optional=None
+        Numerical type used for computation
+
+    Returns
+    -------
+    list[str]
+        List of formatted strings for each sample
+```
+
 ### Utils function
 
 These are utility functions for the general case.

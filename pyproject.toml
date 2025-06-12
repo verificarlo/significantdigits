@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "significantdigits"
-version = "0.3.0"
+version = "0.3.1"
 description = "Solid stochastic statistic analysis of Stochastic Arithmetic"
 authors = [
     { name = "Verificarlo contributors", email = "verificarlo@googlegroups.com" },
