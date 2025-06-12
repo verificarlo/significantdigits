@@ -1210,7 +1210,7 @@ def print_digits(
 
     def print_error_absolute(x, c):
         return np.format_float_scientific(
-            x, precision=int(c), unique=False, trim="0", sign=False
+            x, precision=max(0, int(c)), unique=False, trim="0", sign=False
         )
 
     def print_significant_relative(x, c):
@@ -1225,7 +1225,7 @@ def print_digits(
 
     def print_error_relative(x, c):
         return np.format_float_scientific(
-            x, precision=int(c), unique=False, trim="0", sign=False
+            x, precision=max(0, int(c)), unique=False, trim="0", sign=False
         )
 
     # Create output array with same shape as input
