@@ -9,12 +9,12 @@ from ._significantdigits import (
     Metric,
     Error,
     SignificantDigitsException,
+    format_uncertainty,
     significant_digits,
     contributing_digits,
     change_basis,
     probability_estimation_bernoulli,
     minimum_number_of_trials,
-    print_digits,
 )
 
 __all__ = [
@@ -29,5 +29,5 @@ __all__ = [
     "change_basis",
     "probability_estimation_bernoulli",
     "minimum_number_of_trials",
-    "print_digits",
+    "format_uncertainty",
 ]
