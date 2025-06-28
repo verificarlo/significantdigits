@@ -45,3 +45,4 @@ def dispatcher(method):
         return relative_error
     if method == 'asarray':
         return asarray
+    raise NotImplementedError(f"Method '{method}' not implemented in dense dispatcher")

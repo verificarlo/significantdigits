@@ -8,7 +8,6 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import scipy
 import scipy.stats
 from icecream import ic
 
@@ -172,6 +171,7 @@ def _lower_map(x):
         return list(map(str.lower, x))
     if isinstance(x, dict):
         return {k.lower(): v for k, v in x.items()}
+    raise TypeError(f"_lower_map only supports list and dict, not {type(x)}")
 
 
 Metric.names = _lower_map(vars(Metric)["_member_names_"])
@@ -278,10 +278,9 @@ def change_basis(array: InputType, basis: int) -> OutputType:
 
 
 def _operator_along_axis(operator, x, y, axis):
-    shape = list(y.shape)
-    shape.insert(axis, 1)
-    y_reshaped = np.reshape(y, shape)
-    return operator(x, y_reshaped)
+    # Use np.expand_dims for more efficient dimension expansion
+    y_expanded = np.expand_dims(y, axis=axis)
+    return operator(x, y_expanded)
 
 
 def _divide_along_axis(x, y, axis):
@@ -411,7 +410,7 @@ def _compute_z(
         if nb_samples % 2 != 0:
             error_msg = "Number of samples must be a multiple of 2"
             raise SignificantDigitsException(error_msg)
-        nb_samples /= 2
+        nb_samples //= 2
         if shuffle_samples:
             np.random.shuffle(array)
         x, y = np.split(array, 2, axis=axis)
@@ -448,7 +447,7 @@ def _compute_z(
             y, axis=axis, reference_is_random_variable=reference_is_random_variable
         )
     elif Error.is_relative(error):
-        if np.any(y[y == 0]):
+        if np.count_nonzero(y) != y.size:
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
         z = _divide_along_axis(x, y, axis=axis) - 1
@@ -590,18 +589,25 @@ def _significant_digits_general(
     mask = np.full_like(significant, True, dtype=bool)
     z = np.abs(z)
 
-    ic(z, reference, e)
+    if _VERBOSE_MODE:
+        ic(z, reference, e)
+        z_max = z.max(axis=axis)
 
+    # Pre-compute offset for efficiency
+    e_offset = e - 1.0
+    
     # Compute successes
     for k in range(0, max_bits + 1):
-        ic(k, significant, mask, z.max(axis=axis))
+        if _VERBOSE_MODE:
+            ic(k, significant, mask, z_max)
 
-        kth = k - (e - 1.0)
-        successes = np.min(z <= 2 ** (-kth), axis=axis)
+        kth = k - e_offset
+        successes = np.min(z <= np.exp2(-kth), axis=axis)
         mask = np.logical_and(mask, successes)
         significant[mask] = k
 
-        ic(kth, 2**-kth, successes, significant, mask)
+        if _VERBOSE_MODE:
+            ic(kth, np.exp2(-kth), successes, significant, mask)
 
         if ~mask.all():
             break
@@ -872,12 +878,16 @@ def _contributing_digits_general(
     max_bits = _get_significant_size(z, dtype=dtype)
     contributing = np.full(shape=sample_shape, fill_value=1)
     mask = np.full_like(contributing, True, dtype=bool)
+    
+    # Pre-compute offset and absolute z for efficiency
+    e_offset = e - 1.0
+    abs_z = np.abs(z)
 
     for k in range(1, max_bits + 1):
-        kth = k - (e - 1.0)
-        kth_bit_z = np.floor(np.abs(z) * 2**kth).astype(np.int64)
+        kth = k - e_offset
+        kth_bit_z = np.floor(abs_z * np.exp2(kth)).astype(np.int64)
 
-        successes = np.sum(np.mod(kth_bit_z, 2), axis=axis) == 0
+        successes = np.sum(kth_bit_z & 1, axis=axis) == 0
         mask = np.logical_and(mask, successes)
         contributing[mask] = k
 
@@ -1219,7 +1229,8 @@ def format_uncertainty(
     # sd = np.floor(sd)
     cd = np.ceil(cd)
 
-    ic(sd, cd)
+    if _VERBOSE_MODE:
+        ic(sd, cd)
 
     def print_significant_absolute(x, c):
         return np.format_float_positional(
@@ -1259,27 +1270,47 @@ def format_uncertainty(
 
     # Create output array with same shape as input
     array, _ = _preprocess_inputs(array, reference)
-    formatted_array = np.empty(array.shape, dtype=object)
-    value_array = np.empty(array.shape, dtype=_internal_dtype)
-    error_array = np.empty(array.shape, dtype=_internal_dtype)
+    
+    # Only allocate arrays that are actually needed
+    if as_tuple:
+        value_array = np.empty(array.shape, dtype=object)
+        error_array = np.empty(array.shape, dtype=object)
+        formatted_array = None
+    else:
+        formatted_array = np.empty(array.shape, dtype=object)
+        value_array = None
+        error_array = None
 
     if Error.is_absolute(error):
         # Use nditer to iterate over all elements while preserving multi-dimensional structure
-        with np.nditer(
-            [array, sd, cd, formatted_array],
-            flags=["multi_index", "refs_ok"],
-            op_flags=[["readonly"], ["readonly"], ["readonly"], ["writeonly"]],
-        ) as it:
-            for x_val, sd_val, cd_val, out_val in it:
-                idx = it.multi_index
-                significant_str = print_significant_absolute(
-                    x_val.item(), cd_val.item()
-                )
-                error_str = print_error_absolute(2 ** -sd_val.item(), cd_val.item())
-                if as_tuple:
+        if as_tuple:
+            # When returning tuples, we don't need the formatted_array
+            with np.nditer(
+                [array, sd, cd],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[["readonly"], ["readonly"], ["readonly"]],
+            ) as it:
+                for x_val, sd_val, cd_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_absolute(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_absolute(np.exp2(-sd_val.item()), cd_val.item())
                     value_array[idx] = significant_str
                     error_array[idx] = error_str
-                else:
+        else:
+            # When returning formatted strings, we need the formatted_array
+            with np.nditer(
+                [array, sd, cd, formatted_array],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[["readonly"], ["readonly"], ["readonly"], ["writeonly"]],
+            ) as it:
+                for x_val, sd_val, cd_val, out_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_absolute(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_absolute(np.exp2(-sd_val.item()), cd_val.item())
                     formatted_array[idx] = f"{significant_str} ± {error_str}"
 
     elif Error.is_relative(error):
@@ -1289,29 +1320,49 @@ def format_uncertainty(
         reference = np.asarray(reference)
 
         # Use nditer for relative error formatting
-        with np.nditer(
-            [array, reference, sd, cd, formatted_array],
-            flags=["multi_index", "refs_ok"],
-            op_flags=[
-                ["readonly"],
-                ["readonly"],
-                ["readonly"],
-                ["readonly"],
-                ["writeonly"],
-            ],
-        ) as it:
-            for x_val, ref_val, sd_val, cd_val, out_val in it:
-                idx = it.multi_index
-                significant_str = print_significant_relative(
-                    x_val.item(), cd_val.item()
-                )
-                error_str = print_error_relative(
-                    ref_val.item() * (2 ** -sd_val.item()), cd_val.item()
-                )
-                if as_tuple:
+        if as_tuple:
+            # When returning tuples, we don't need the formatted_array
+            with np.nditer(
+                [array, reference, sd, cd],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                ],
+            ) as it:
+                for x_val, ref_val, sd_val, cd_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_relative(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_relative(
+                        ref_val.item() * np.exp2(-sd_val.item()), cd_val.item()
+                    )
                     value_array[idx] = significant_str
                     error_array[idx] = error_str
-                else:
+        else:
+            # When returning formatted strings, we need the formatted_array
+            with np.nditer(
+                [array, reference, sd, cd, formatted_array],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["writeonly"],
+                ],
+            ) as it:
+                for x_val, ref_val, sd_val, cd_val, out_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_relative(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_relative(
+                        ref_val.item() * np.exp2(-sd_val.item()), cd_val.item()
+                    )
                     formatted_array[idx] = f"{significant_str} ± {error_str}"
     else:
         raise SignificantDigitsException(f"Unknown error {error}")

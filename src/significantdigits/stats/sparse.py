@@ -15,7 +15,10 @@ def issparse(a):
 
 
 def mean(a, /, *args, axis=None, **kwargs):
-    return np.sum(a, axis=axis, *args, **kwargs)/len(a)
+    size = np.size(a, axis=axis)
+    if size == 0:
+        raise ValueError("Cannot compute mean of empty array")
+    return np.sum(a, axis=axis, *args, **kwargs) / size
 
 
 def var(a, /, *args, **kwargs):
@@ -52,3 +55,4 @@ def dispatcher(method):
         return relative_error
     if method == 'asarray':
         return asarray
+    raise NotImplementedError(f"Method '{method}' not implemented in sparse dispatcher")
