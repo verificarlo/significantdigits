@@ -15,9 +15,10 @@ def issparse(a):
 
 
 def mean(a, /, *args, axis=None, **kwargs):
-    if np.size(a, axis=axis) == 0:
+    size = np.size(a, axis=axis)
+    if size == 0:
         raise ValueError("Cannot compute mean of empty array")
-    return np.sum(a, axis=axis, *args, **kwargs) / np.size(a, axis=axis)
+    return np.sum(a, axis=axis, *args, **kwargs) / size
 
 
 def var(a, /, *args, **kwargs):
