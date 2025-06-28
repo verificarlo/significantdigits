@@ -447,7 +447,7 @@ def _compute_z(
             y, axis=axis, reference_is_random_variable=reference_is_random_variable
         )
     elif Error.is_relative(error):
-        if np.any(y == 0):
+        if np.count_nonzero(y) != y.size:
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
         z = _divide_along_axis(x, y, axis=axis) - 1
