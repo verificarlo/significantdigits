@@ -1273,8 +1273,8 @@ def format_uncertainty(
     
     # Only allocate arrays that are actually needed
     if as_tuple:
-        value_array = np.empty(array.shape, dtype=_internal_dtype)
-        error_array = np.empty(array.shape, dtype=_internal_dtype)
+        value_array = np.empty(array.shape, dtype=object)
+        error_array = np.empty(array.shape, dtype=object)
         formatted_array = None
     else:
         formatted_array = np.empty(array.shape, dtype=object)
