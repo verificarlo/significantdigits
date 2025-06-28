@@ -1283,21 +1283,34 @@ def format_uncertainty(
 
     if Error.is_absolute(error):
         # Use nditer to iterate over all elements while preserving multi-dimensional structure
-        with np.nditer(
-            [array, sd, cd, formatted_array],
-            flags=["multi_index", "refs_ok"],
-            op_flags=[["readonly"], ["readonly"], ["readonly"], ["writeonly"]],
-        ) as it:
-            for x_val, sd_val, cd_val, out_val in it:
-                idx = it.multi_index
-                significant_str = print_significant_absolute(
-                    x_val.item(), cd_val.item()
-                )
-                error_str = print_error_absolute(np.exp2(-sd_val.item()), cd_val.item())
-                if as_tuple:
+        if as_tuple:
+            # When returning tuples, we don't need the formatted_array
+            with np.nditer(
+                [array, sd, cd],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[["readonly"], ["readonly"], ["readonly"]],
+            ) as it:
+                for x_val, sd_val, cd_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_absolute(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_absolute(np.exp2(-sd_val.item()), cd_val.item())
                     value_array[idx] = significant_str
                     error_array[idx] = error_str
-                else:
+        else:
+            # When returning formatted strings, we need the formatted_array
+            with np.nditer(
+                [array, sd, cd, formatted_array],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[["readonly"], ["readonly"], ["readonly"], ["writeonly"]],
+            ) as it:
+                for x_val, sd_val, cd_val, out_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_absolute(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_absolute(np.exp2(-sd_val.item()), cd_val.item())
                     formatted_array[idx] = f"{significant_str} ± {error_str}"
 
     elif Error.is_relative(error):
@@ -1307,29 +1320,49 @@ def format_uncertainty(
         reference = np.asarray(reference)
 
         # Use nditer for relative error formatting
-        with np.nditer(
-            [array, reference, sd, cd, formatted_array],
-            flags=["multi_index", "refs_ok"],
-            op_flags=[
-                ["readonly"],
-                ["readonly"],
-                ["readonly"],
-                ["readonly"],
-                ["writeonly"],
-            ],
-        ) as it:
-            for x_val, ref_val, sd_val, cd_val, out_val in it:
-                idx = it.multi_index
-                significant_str = print_significant_relative(
-                    x_val.item(), cd_val.item()
-                )
-                error_str = print_error_relative(
-                    ref_val.item() * np.exp2(-sd_val.item()), cd_val.item()
-                )
-                if as_tuple:
+        if as_tuple:
+            # When returning tuples, we don't need the formatted_array
+            with np.nditer(
+                [array, reference, sd, cd],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                ],
+            ) as it:
+                for x_val, ref_val, sd_val, cd_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_relative(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_relative(
+                        ref_val.item() * np.exp2(-sd_val.item()), cd_val.item()
+                    )
                     value_array[idx] = significant_str
                     error_array[idx] = error_str
-                else:
+        else:
+            # When returning formatted strings, we need the formatted_array
+            with np.nditer(
+                [array, reference, sd, cd, formatted_array],
+                flags=["multi_index", "refs_ok"],
+                op_flags=[
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["readonly"],
+                    ["writeonly"],
+                ],
+            ) as it:
+                for x_val, ref_val, sd_val, cd_val, out_val in it:
+                    idx = it.multi_index
+                    significant_str = print_significant_relative(
+                        x_val.item(), cd_val.item()
+                    )
+                    error_str = print_error_relative(
+                        ref_val.item() * np.exp2(-sd_val.item()), cd_val.item()
+                    )
                     formatted_array[idx] = f"{significant_str} ± {error_str}"
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
