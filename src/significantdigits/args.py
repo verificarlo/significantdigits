@@ -38,7 +38,7 @@ def process_args(args):
         args.probability = _default_probability[args.metric]
 
     if args.confidence is not None:
-        _assert_is_confidence(args.probability)
+        _assert_is_confidence(args.confidence)
     else:
         args.confidence = _default_confidence[args.metric]
 
