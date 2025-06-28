@@ -1,4 +1,4 @@
-# significantdigits package - v0.3.1
+# significantdigits package - v0.4.0
 
 Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
