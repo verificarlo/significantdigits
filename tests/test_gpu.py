@@ -103,6 +103,18 @@ class TestGpuStats:
             stats.relative_error(cp.asarray(x), cp.asarray(y)), np.abs(x / y - 1)
         )
 
+    def test_absolute_error_promotes_numpy_operands(self):
+        x = np.array([1.0, 2.0, 3.0])
+        y = cp.asarray([1.5, 1.5, 1.5])
+        assert_matches_numpy(stats.absolute_error(x, y), np.abs(x - cp.asnumpy(y)))
+        assert_matches_numpy(stats.absolute_error(y, x), np.abs(cp.asnumpy(y) - x))
+
+    def test_relative_error_promotes_numpy_operands(self):
+        x = np.array([1.0, 2.0, 3.0])
+        y = cp.asarray([2.0, 2.0, 2.0])
+        assert_matches_numpy(stats.relative_error(x, y), np.abs(x / cp.asnumpy(y) - 1))
+        assert_matches_numpy(stats.relative_error(y, x), np.abs(cp.asnumpy(y) / x - 1))
+
     def test_asarray(self):
         x = cp.asarray([1.0, 2.0])
         assert gpu.iscupy(stats.asarray(x))
