@@ -1,10 +1,13 @@
 
-from significantdigits.stats import (dense, sparse)
+from significantdigits.stats import (dense, gpu, sparse)
 
 
 def dispatch(a, method=None):
     if method is None:
         raise NotImplementedError(method)
+
+    if gpu.iscupy(a):
+        return gpu.dispatcher(method)
 
     if sparse.issparse(a):
         return sparse.dispatcher(method)

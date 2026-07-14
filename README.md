@@ -9,6 +9,7 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
 
 - [Getting started](#getting-started)
 - [Installation](#installation)
+- [GPU support](#gpu-support)
 - [Advanced Usage](#advanced-usage)
     - [Inputs types](#inputs-types)
     - [Z computation](#z-computation)
@@ -83,6 +84,36 @@ python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.g
 # or if you don't have 'git' installed
 python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
 ```
+
+## GPU support
+
+`significantdigits` has an optional GPU backend based on [CuPy](https://cupy.dev/).
+When inputs are `cupy.ndarray`, all computations run on the GPU and results are
+returned as `cupy.ndarray` (call `.get()` to move them back to the host).
+
+Install the extra matching your CUDA toolkit version:
+
+```bash
+python3 -m pip install -U "significantdigits[gpu]"          # CUDA 12.x (default)
+python3 -m pip install -U "significantdigits[gpu-cuda11x]"  # CUDA 11.x
+```
+
+Usage is identical to the NumPy case; only the array type changes:
+
+```python
+>>> import cupy as cp
+>>> import significantdigits as sd
+>>> eps = 2**-52
+>>> X = 1 + cp.random.uniform(-1, 1, 10) * eps
+>>> s = sd.significant_digits(X, reference=1)  # runs on the GPU
+>>> s.get()  # transfer back to the host
+array(51.02329059)
+```
+
+Mixing inputs is supported: if the array is on the GPU and the reference is a
+NumPy array or scalar, the reference is transferred to the GPU automatically.
+`format_uncertainty` always returns NumPy arrays of strings since formatting
+happens on the host.
 
 ## Examples
 

@@ -24,9 +24,10 @@ significantdigits/
 │   ├── __main__.py                 # CLI entry point
 │   ├── args.py                     # CLI argument parsing
 │   ├── stats/                      # Numerical operations abstraction
-│   │   ├── dispatch.py             # Routes between dense/sparse backends
+│   │   ├── dispatch.py             # Routes between dense/sparse/gpu backends
 │   │   ├── dense.py                # NumPy-based stats (mean, var, std, errors)
-│   │   └── sparse.py               # SciPy sparse matrix support
+│   │   ├── sparse.py               # SciPy sparse matrix support
+│   │   └── gpu.py                  # CuPy GPU backend (optional dependency)
 │   └── export/                     # I/O handling
 │       ├── stdin.py                # Parse/export Python literals and text
 │       └── numpy.py                # .npy binary file support
@@ -59,6 +60,8 @@ pip install . -r requirements.txt
 
 **Runtime dependencies:** `numpy>=1.22.0`, `scipy>=1.7.3`, `attrs>=21.2.0`, `icecream>=2.1.3`
 
+**Optional dependencies:** `cupy` for the GPU backend (extras: `gpu`, `gpu-cuda12x`, `gpu-cuda11x`)
+
 **Dev/doc dependencies:** `pytest>=6.2.5`, `pdoc>=14.2.0`, `flake8`
 
 **Python versions supported:** 3.8 – 3.12
@@ -77,6 +80,7 @@ pytest -m integration        # CLI, file I/O, end-to-end workflows
 pytest -m edge_cases         # Inf/NaN handling, extreme values
 pytest -m property_based     # Mathematical invariants, fuzzing
 pytest -m validation         # Parameter validation and error handling
+pytest -m gpu                # CuPy GPU backend (skipped without CuPy + CUDA device)
 
 # Control sample count for stochastic tests (default: 3)
 pytest --nsamples=10
@@ -94,6 +98,7 @@ pytest tests/test_cramer.py::test_significant_digits
 | `edge_cases` | Numerical stability, inf/NaN |
 | `property_based` | Mathematical property fuzzing |
 | `validation` | Input validation, error messages |
+| `gpu` | CuPy GPU backend (auto-skipped without CuPy + CUDA device) |
 
 ---
 
@@ -305,6 +310,7 @@ The CLI entry point is `significantdigits.__main__:main`, registered via `pyproj
 | `test_args.py` | — | CLI argument parsing |
 | `test_compute_z.py` | — | Internal Z computation |
 | `test_scaling_factor.py` | — | Scaling factor computation |
+| `test_gpu.py` | `gpu` | CuPy GPU backend and dispatch |
 | `test_print_digits.py` | — | Output formatting |
 
 ---
