@@ -7,10 +7,13 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
 
 ## Table of Contents
 
-- [Getting started](#getting-started)
-- [Installation](#installation)
-- [GPU support](#gpu-support)
-- [Advanced Usage](#advanced-usage)
+- [significantdigits package - v0.4.0](#significantdigits-package---v040)
+  - [Table of Contents](#table-of-contents)
+  - [Getting started](#getting-started)
+  - [Installation](#installation)
+  - [GPU support](#gpu-support)
+  - [Examples](#examples)
+  - [Advanced Usage](#advanced-usage)
     - [Inputs types](#inputs-types)
     - [Z computation](#z-computation)
     - [Methods](#methods)
@@ -18,11 +21,14 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
     - [Contributing digits](#contributing-digits)
     - [Formatting Results with `format_uncertainty`](#formatting-results-with-format_uncertainty)
     - [Utils function](#utils-function)
-        - [`probability_estimation_general`](#probability_estimation_general)
-        - [`minimum_number_of_trials`](#minimum_number_of_trials)
-- [Recent Improvements](#recent-improvements)
-- [Testing](#testing)
-- [License](#license)
+      - [`probability_estimation_general`](#probability_estimation_general)
+      - [`minimum_number_of_trials`](#minimum_number_of_trials)
+  - [Recent Improvements](#recent-improvements)
+  - [Testing](#testing)
+    - [Running Tests](#running-tests)
+    - [Test Categories](#test-categories)
+    - [Mathematical Properties Tested](#mathematical-properties-tested)
+    - [License](#license)
 
 ## Getting started
 
@@ -480,6 +486,6 @@ under the Apache License v2.0 with LLVM Exceptions.
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception.
 See https://llvm.org/LICENSE.txt for license information.
 
-Copyright (c) 2020-2025 Verificarlo Contributors
+Copyright (c) 2020-2026 Verificarlo Contributors
 
 ---

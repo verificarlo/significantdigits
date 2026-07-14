@@ -122,8 +122,8 @@ class TestGpuDigits:
 
     @pytest.mark.parametrize("method", [sd.Method.CNH, sd.Method.General])
     @pytest.mark.parametrize("error", [sd.Error.Absolute, sd.Error.Relative])
-    def test_significant_digits_scalar_reference(self, method, error):
-        x = self.samples(10)
+    def test_significant_digits_scalar_reference(self, method, error, nsamples):
+        x = self.samples(nsamples)
         cpu = sd.significant_digits(x, reference=1.0, method=method, error=error)
         res = sd.significant_digits(
             cp.asarray(x), reference=1.0, method=method, error=error
@@ -132,8 +132,8 @@ class TestGpuDigits:
 
     @pytest.mark.parametrize("method", [sd.Method.CNH, sd.Method.General])
     @pytest.mark.parametrize("error", [sd.Error.Absolute, sd.Error.Relative])
-    def test_contributing_digits_scalar_reference(self, method, error):
-        x = self.samples(10)
+    def test_contributing_digits_scalar_reference(self, method, error, nsamples):
+        x = self.samples(nsamples)
         cpu = sd.contributing_digits(x, reference=1.0, method=method, error=error)
         res = sd.contributing_digits(
             cp.asarray(x), reference=1.0, method=method, error=error
@@ -141,8 +141,8 @@ class TestGpuDigits:
         assert_matches_numpy(res, cpu)
 
     @pytest.mark.parametrize("method", [sd.Method.CNH, sd.Method.General])
-    def test_significant_digits_array_reference(self, method):
-        x = self.samples(10, shape=(3, 4))
+    def test_significant_digits_array_reference(self, method, nsamples):
+        x = self.samples(nsamples, shape=(3, 4))
         reference = x.mean(axis=0)
         cpu = sd.significant_digits(x, reference=reference, method=method)
         res = sd.significant_digits(
@@ -151,26 +151,27 @@ class TestGpuDigits:
         assert_matches_numpy(res, cpu)
 
     @pytest.mark.parametrize("method", [sd.Method.CNH, sd.Method.General])
-    def test_significant_digits_no_reference(self, method):
-        x = self.samples(10, shape=(3,))
+    def test_significant_digits_no_reference(self, method, nsamples):
+        # reference=None splits the sample axis in two, so it must stay even
+        x = self.samples(2 * nsamples, shape=(3,))
         cpu = sd.significant_digits(x, reference=None, method=method)
         res = sd.significant_digits(cp.asarray(x), reference=None, method=method)
         assert_matches_numpy(res, cpu)
 
-    def test_significant_digits_numpy_reference_is_promoted(self):
-        x = self.samples(10)
+    def test_significant_digits_numpy_reference_is_promoted(self, nsamples):
+        x = self.samples(nsamples)
         cpu = sd.significant_digits(x, reference=np.float64(1.0))
         res = sd.significant_digits(cp.asarray(x), reference=np.float64(1.0))
         assert_matches_numpy(res, cpu)
 
-    def test_change_basis(self):
-        x = self.samples(10)
+    def test_change_basis(self, nsamples):
+        x = self.samples(nsamples)
         cpu = sd.significant_digits(x, reference=1.0, basis=10)
         res = sd.significant_digits(cp.asarray(x), reference=1.0, basis=10)
         assert_matches_numpy(res, cpu)
 
-    def test_format_uncertainty_returns_host_array(self):
-        x = self.samples(10)
+    def test_format_uncertainty_returns_host_array(self, nsamples):
+        x = self.samples(nsamples)
         cpu = sd.format_uncertainty(x, reference=1.0)
         res = sd.format_uncertainty(cp.asarray(x), reference=1.0)
         assert isinstance(res, np.ndarray)

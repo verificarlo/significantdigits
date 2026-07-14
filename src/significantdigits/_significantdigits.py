@@ -900,7 +900,12 @@ def _contributing_digits_general(
 
     for k in range(1, max_bits + 1):
         kth = k - e_offset
-        kth_bit_z = xp.floor(abs_z * xp.exp2(kth)).astype(np.int64)
+        # kth is always integer-valued (k is an int, e_offset is an integer
+        # scaling factor); see _significant_digits_general for why ldexp is
+        # used instead of exp2 here (CPU/GPU libm rounding can disagree by
+        # 1 ULP at exact powers of two, which flips the floor()/parity test).
+        scale = xp.ldexp(1.0, kth.astype(xp.int64))
+        kth_bit_z = xp.floor(abs_z * scale).astype(np.int64)
 
         successes = xp.sum(kth_bit_z & 1, axis=axis) == 0
         mask = xp.logical_and(mask, successes)
@@ -1215,7 +1220,11 @@ def format_uncertainty(
 
     """
 
-    # Formatting happens on the host: move GPU arrays back to numpy
+    # significant_digits/contributing_digits are computed on the host, not
+    # the GPU, even when given cupy inputs: numpy's and cupy's std() use
+    # different summation orders and can disagree by 1 ULP, which propagates
+    # through log2()/ceil() and can flip the formatted digit count between
+    # backends. Formatting must be backend-independent, so move to host first.
     if _iscupy(array):
         array = array.get()
     if _iscupy(reference):
