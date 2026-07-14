@@ -17,8 +17,7 @@ try:
     import cupy as cp
 
     try:
-        cp.cuda.runtime.getDeviceCount()
-        GPU_AVAILABLE = True
+        GPU_AVAILABLE = cp.cuda.runtime.getDeviceCount() > 0
     except Exception:
         GPU_AVAILABLE = False
 except ImportError:
