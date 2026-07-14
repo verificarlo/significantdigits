@@ -528,7 +528,7 @@ def _significant_digits_cnh(
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
     z_eps = xp.max(xp.abs(z), axis=axis)
-    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
+    std = xp.where(std == 0, z_eps, std)
     # We need to mask the std where std == 0
     # In that case, we have no variance and z = 0
     mask = std == 0
@@ -815,7 +815,7 @@ def _contributing_digits_cnh(
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
     z_eps = xp.max(xp.abs(z), axis=axis)
-    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
+    std = xp.where(std == 0, z_eps, std)
     # We need to mask the std where std == 0
     # In that case, we have no variance and z = 0
     mask = std == 0
