@@ -41,10 +41,14 @@ def std(*args, **kwargs):
 
 
 def absolute_error(x, y):
+    x = cp.asanyarray(x)
+    y = cp.asanyarray(y)
     return cp.abs(x - y)
 
 
 def relative_error(x, y):
+    x = cp.asanyarray(x)
+    y = cp.asanyarray(y)
     return cp.abs(x / y - 1)
 
 
