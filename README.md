@@ -7,9 +7,13 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
 
 ## Table of Contents
 
-- [Getting started](#getting-started)
-- [Installation](#installation)
-- [Advanced Usage](#advanced-usage)
+- [significantdigits package - v0.4.0](#significantdigits-package---v040)
+  - [Table of Contents](#table-of-contents)
+  - [Getting started](#getting-started)
+  - [Installation](#installation)
+  - [GPU support](#gpu-support)
+  - [Examples](#examples)
+  - [Advanced Usage](#advanced-usage)
     - [Inputs types](#inputs-types)
     - [Z computation](#z-computation)
     - [Methods](#methods)
@@ -17,11 +21,14 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
     - [Contributing digits](#contributing-digits)
     - [Formatting Results with `format_uncertainty`](#formatting-results-with-format_uncertainty)
     - [Utils function](#utils-function)
-        - [`probability_estimation_general`](#probability_estimation_general)
-        - [`minimum_number_of_trials`](#minimum_number_of_trials)
-- [Recent Improvements](#recent-improvements)
-- [Testing](#testing)
-- [License](#license)
+      - [`probability_estimation_general`](#probability_estimation_general)
+      - [`minimum_number_of_trials`](#minimum_number_of_trials)
+  - [Recent Improvements](#recent-improvements)
+  - [Testing](#testing)
+    - [Running Tests](#running-tests)
+    - [Test Categories](#test-categories)
+    - [Mathematical Properties Tested](#mathematical-properties-tested)
+    - [License](#license)
 
 ## Getting started
 
@@ -73,16 +80,46 @@ To print the result as mean +/- error, use the format_uncertainty function:
 ## Installation
 
 ```bash
-python3 -m pip install -U significantdigits
+uv add significantdigits
 ```
 
 or if you want the latest version of the code, you can install it **from** the repository directly
 
 ```bash
-python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.git
+uv add "significantdigits @ git+https://github.com/verificarlo/significantdigits.git"
 # or if you don't have 'git' installed
-python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
+uv add "significantdigits @ https://github.com/verificarlo/significantdigits/zipball/master"
 ```
+
+## GPU support
+
+`significantdigits` has an optional GPU backend based on [CuPy](https://cupy.dev/).
+When inputs are `cupy.ndarray`, all computations run on the GPU and results are
+returned as `cupy.ndarray` (call `.get()` to move them back to the host).
+
+Install the extra matching your CUDA toolkit version:
+
+```bash
+uv add "significantdigits[gpu]"          # CUDA 12.x (default)
+uv add "significantdigits[gpu-cuda11x]"  # CUDA 11.x
+```
+
+Usage is identical to the NumPy case; only the array type changes:
+
+```python
+>>> import cupy as cp
+>>> import significantdigits as sd
+>>> eps = 2**-52
+>>> X = 1 + cp.random.uniform(-1, 1, 10) * eps
+>>> s = sd.significant_digits(X, reference=1)  # runs on the GPU
+>>> s.get()  # transfer back to the host
+array(51.02329059)
+```
+
+Mixing inputs is supported: if the array is on the GPU and the reference is a
+NumPy array or scalar, the reference is transferred to the GPU automatically.
+`format_uncertainty` always returns NumPy arrays of strings since formatting
+happens on the host.
 
 ## Examples
 
@@ -409,18 +446,21 @@ The package includes a comprehensive test suite with 153 tests across multiple c
 ### Running Tests
 
 ```bash
+# Install the project and its dependencies
+uv sync
+
 # Run all tests
-pytest
+uv run pytest
 
 # Run with performance tests (marked with @pytest.mark.performance)
-pytest -m performance
+uv run pytest -m performance
 
 # Run specific test categories
-pytest tests/test_edge_cases.py      # Edge cases and numerical stability
-pytest tests/test_validation.py     # Parameter validation and error handling
-pytest tests/test_property_based.py # Property-based testing and fuzzing
-pytest tests/test_integration.py    # End-to-end integration tests
-pytest tests/test_performance.py    # Performance regression tests
+uv run pytest tests/test_edge_cases.py      # Edge cases and numerical stability
+uv run pytest tests/test_validation.py     # Parameter validation and error handling
+uv run pytest tests/test_property_based.py # Property-based testing and fuzzing
+uv run pytest tests/test_integration.py    # End-to-end integration tests
+uv run pytest tests/test_performance.py    # Performance regression tests
 ```
 
 ### Test Categories
@@ -446,6 +486,6 @@ under the Apache License v2.0 with LLVM Exceptions.
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception.
 See https://llvm.org/LICENSE.txt for license information.
 
-Copyright (c) 2020-2025 Verificarlo Contributors
+Copyright (c) 2020-2026 Verificarlo Contributors
 
 ---

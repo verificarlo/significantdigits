@@ -34,6 +34,13 @@ dependencies = [
     "pdoc>=14.2.0",
 ]
 
+[project.optional-dependencies]
+# GPU backend; pick the CuPy wheel matching your CUDA toolkit,
+# e.g. 'pip install significantdigits[gpu-cuda11x]' for CUDA 11.x
+gpu = ["cupy-cuda12x>=12.0"]
+gpu-cuda12x = ["cupy-cuda12x>=12.0"]
+gpu-cuda11x = ["cupy-cuda11x>=12.0"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/significantdigits"]
 
