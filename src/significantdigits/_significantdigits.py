@@ -611,12 +611,18 @@ def _significant_digits_general(
             ic(k, significant, mask, z_max)
 
         kth = k - e_offset
-        successes = xp.min(z <= xp.exp2(-kth), axis=axis)
+        # kth is always integer-valued (k is an int, e_offset is an integer
+        # scaling factor), so the threshold 2**-kth is computed with ldexp
+        # rather than exp2: exp2 is a transcendental function whose rounding
+        # can differ by 1 ULP between CPU (numpy) and GPU (cupy/CUDA) libm
+        # implementations, which flips the boundary comparison below.
+        threshold = xp.ldexp(1.0, (-kth).astype(xp.int64))
+        successes = xp.min(z <= threshold, axis=axis)
         mask = xp.logical_and(mask, successes)
         significant = xp.where(mask, k, significant)
 
         if _VERBOSE_MODE:
-            ic(kth, xp.exp2(-kth), successes, significant, mask)
+            ic(kth, threshold, successes, significant, mask)
 
         if ~mask.all():
             break
