@@ -74,15 +74,15 @@ To print the result as mean +/- error, use the format_uncertainty function:
 ## Installation
 
 ```bash
-python3 -m pip install -U significantdigits
+uv add significantdigits
 ```
 
 or if you want the latest version of the code, you can install it **from** the repository directly
 
 ```bash
-python3 -m pip install -U git+https://github.com/verificarlo/significantdigits.git
+uv add "significantdigits @ git+https://github.com/verificarlo/significantdigits.git"
 # or if you don't have 'git' installed
-python3 -m pip install -U https://github.com/verificarlo/significantdigits/zipball/master
+uv add "significantdigits @ https://github.com/verificarlo/significantdigits/zipball/master"
 ```
 
 ## GPU support
@@ -94,8 +94,8 @@ returned as `cupy.ndarray` (call `.get()` to move them back to the host).
 Install the extra matching your CUDA toolkit version:
 
 ```bash
-python3 -m pip install -U "significantdigits[gpu]"          # CUDA 12.x (default)
-python3 -m pip install -U "significantdigits[gpu-cuda11x]"  # CUDA 11.x
+uv add "significantdigits[gpu]"          # CUDA 12.x (default)
+uv add "significantdigits[gpu-cuda11x]"  # CUDA 11.x
 ```
 
 Usage is identical to the NumPy case; only the array type changes:
@@ -440,18 +440,21 @@ The package includes a comprehensive test suite with 153 tests across multiple c
 ### Running Tests
 
 ```bash
+# Install the project and its dependencies
+uv sync
+
 # Run all tests
-pytest
+uv run pytest
 
 # Run with performance tests (marked with @pytest.mark.performance)
-pytest -m performance
+uv run pytest -m performance
 
 # Run specific test categories
-pytest tests/test_edge_cases.py      # Edge cases and numerical stability
-pytest tests/test_validation.py     # Parameter validation and error handling
-pytest tests/test_property_based.py # Property-based testing and fuzzing
-pytest tests/test_integration.py    # End-to-end integration tests
-pytest tests/test_performance.py    # Performance regression tests
+uv run pytest tests/test_edge_cases.py      # Edge cases and numerical stability
+uv run pytest tests/test_validation.py     # Parameter validation and error handling
+uv run pytest tests/test_property_based.py # Property-based testing and fuzzing
+uv run pytest tests/test_integration.py    # End-to-end integration tests
+uv run pytest tests/test_performance.py    # Performance regression tests
 ```
 
 ### Test Categories
