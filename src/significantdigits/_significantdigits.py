@@ -11,6 +11,9 @@ import numpy.typing as npt
 import scipy.stats
 from icecream import ic
 
+from significantdigits.stats.gpu import get_array_module as _get_array_module
+from significantdigits.stats.gpu import iscupy as _iscupy
+
 
 def _get_verbose_mode():
     """@private"""
@@ -188,7 +191,7 @@ _default_probability = {Metric.Significant: 0.95, Metric.Contributing: 0.51}
 _default_confidence = {Metric.Significant: 0.95, Metric.Contributing: 0.95}
 
 InputType = npt.ArrayLike
-r"""Valid random variable inputs type (np.ndarray, tuple, list)
+r"""Valid random variable inputs type (np.ndarray, cupy.ndarray, tuple, list)
 
 Types allowing for `array` in significant_digits and contributing_digits functions
 
@@ -240,11 +243,12 @@ def _assert_is_confidence(confidence: float) -> None:
 
 
 def _assert_is_valid_inputs(array: InputType) -> None:
-    if not isinstance(array, (np.ndarray, list, tuple)):
+    if not isinstance(array, (np.ndarray, list, tuple)) and not _iscupy(array):
         raise TypeError(
-            f"array must be of type {InputType}, not {type(array).__name__}"
+            "array must be array-like (numpy.ndarray, cupy.ndarray, list, tuple), "
+            f"not {type(array).__name__}"
         )
-    if isinstance(array, np.ndarray) and array.ndim == 0:
+    if getattr(array, "ndim", None) == 0:
         raise TypeError("array must be at least 1D")
 
 
@@ -252,8 +256,9 @@ def _preprocess_inputs(
     array: InputType,
     reference: Optional[ReferenceType],
 ) -> Tuple[InternalArrayType, Optional[InternalArrayType]]:
-    preprocessed_array = np.asanyarray(array)
-    preprocessed_reference = np.asanyarray(reference) if reference is not None else None
+    xp = _get_array_module(array, reference)
+    preprocessed_array = xp.asanyarray(array)
+    preprocessed_reference = xp.asanyarray(reference) if reference is not None else None
     return (preprocessed_array, preprocessed_reference)
 
 
@@ -278,17 +283,20 @@ def change_basis(array: InputType, basis: int) -> OutputType:
 
 
 def _operator_along_axis(operator, x, y, axis):
-    # Use np.expand_dims for more efficient dimension expansion
-    y_expanded = np.expand_dims(y, axis=axis)
+    # Use expand_dims for more efficient dimension expansion
+    xp = _get_array_module(x, y)
+    y_expanded = xp.expand_dims(y, axis=axis)
     return operator(x, y_expanded)
 
 
 def _divide_along_axis(x, y, axis):
-    return _operator_along_axis(np.divide, x, y, axis)
+    xp = _get_array_module(x, y)
+    return _operator_along_axis(xp.divide, x, y, axis)
 
 
 def _substract_along_axis(x, y, axis):
-    return _operator_along_axis(np.subtract, x, y, axis)
+    xp = _get_array_module(x, y)
+    return _operator_along_axis(xp.subtract, x, y, axis)
 
 
 def _get_significant_size(
@@ -338,12 +346,14 @@ def _compute_scaling_factor(
         The scaling factor to compute the significant digits
 
     """
+    xp = _get_array_module(y)
     if reference_is_random_variable:
         # The reference is a random variable
         y = y.mean(axis=axis)
-    y_masked = np.ma.masked_equal(y, 0)
-    e_y = np.ma.floor(np.ma.log2(np.ma.abs(y_masked)))
-    return np.ma.filled(e_y, 0) + 1
+    y_abs = xp.abs(y)
+    zero_mask = y_abs == 0
+    e_y = xp.floor(xp.log2(xp.where(zero_mask, 1, y_abs)))
+    return xp.where(zero_mask, 0, e_y) + 1
 
 
 def _compute_z(
@@ -401,6 +411,7 @@ def _compute_z(
     """
     _assert_is_valid_inputs(array)
 
+    xp = _get_array_module(array, reference)
     nb_samples = array.shape[axis]
 
     if reference is None:
@@ -412,8 +423,8 @@ def _compute_z(
             raise SignificantDigitsException(error_msg)
         nb_samples //= 2
         if shuffle_samples:
-            np.random.shuffle(array)
-        x, y = np.split(array, 2, axis=axis)
+            xp.random.shuffle(array)
+        x, y = xp.split(array, 2, axis=axis)
     elif reference.ndim == array.ndim:
         # X and Y have the same dimension
         # It is the case when Y is a random variable
@@ -421,8 +432,8 @@ def _compute_z(
         x = array
         y = reference
         if shuffle_samples:
-            np.random.shuffle(x)
-            np.random.shuffle(y)
+            xp.random.shuffle(x)
+            xp.random.shuffle(y)
     elif reference.ndim == array.ndim - 1:
         # Y has one less dimension than X
         # Y is a constant
@@ -438,8 +449,8 @@ def _compute_z(
     else:
         raise TypeError("No comparison found for X and reference:")
 
-    x = np.asanyarray(x)
-    y = np.asanyarray(y)
+    x = xp.asanyarray(x)
+    y = xp.asanyarray(y)
 
     if Error.is_absolute(error):
         z = _substract_along_axis(x, y, axis=axis)
@@ -447,11 +458,11 @@ def _compute_z(
             y, axis=axis, reference_is_random_variable=reference_is_random_variable
         )
     elif Error.is_relative(error):
-        if np.count_nonzero(y) != y.size:
+        if xp.count_nonzero(y) != y.size:
             warn_msg = "error is set to relative and the reference has 0 leading to NaN"
             warnings.warn(warn_msg)
         z = _divide_along_axis(x, y, axis=axis) - 1
-        e = np.full_like(y, 1)
+        e = xp.full_like(y, 1)
     else:
         raise SignificantDigitsException(f"Unknown error {error}")
     return z, e
@@ -510,25 +521,23 @@ def _significant_digits_cnh(
     z, e = _compute_z(
         array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
+    xp = _get_array_module(z)
     nb_samples = z.shape[axis]
     std = z.std(axis=axis, dtype=_internal_dtype)
     # if std == 0, we set it to the maximum value of z
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
-    z_eps = np.max(np.abs(z), axis=axis)
-    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
-    # We need to mask the std where z_eps == 0
+    z_eps = xp.max(xp.abs(z), axis=axis)
+    std = xp.where(std == 0, z_eps, std)
+    # We need to mask the std where std == 0
     # In that case, we have no variance and z = 0
-    std0 = np.ma.array(std, mask=(z_eps == 0))
+    mask = std == 0
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     inorm = scipy.stats.norm.ppf((probability + 1) / 2)
     delta_chn = 0.5 * np.log2((nb_samples - 1) / chi2) + np.log2(inorm)
-    significant = -np.ma.log2(std0) + (e - 1) - delta_chn
-    std0 = np.ma.array(std, mask=std == 0)
+    significant = -xp.log2(xp.where(mask, 1, std)) + (e - 1) - delta_chn
     max_bits = _get_significant_size(z, dtype=dtype)
-    if significant.ndim == 0:
-        significant = np.ma.array(significant, mask=std0.mask)
-    significant = significant.filled(fill_value=max_bits - delta_chn)
+    significant = xp.where(mask, max_bits - delta_chn, significant)
     return significant
 
 
@@ -583,11 +592,12 @@ def _significant_digits_general(
     z, e = _compute_z(
         array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
+    xp = _get_array_module(z)
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = _get_significant_size(z, dtype=dtype)
-    significant = np.full(shape=sample_shape, fill_value=0)
-    mask = np.full_like(significant, True, dtype=bool)
-    z = np.abs(z)
+    significant = xp.full(shape=sample_shape, fill_value=0)
+    mask = xp.full_like(significant, True, dtype=bool)
+    z = xp.abs(z)
 
     if _VERBOSE_MODE:
         ic(z, reference, e)
@@ -595,21 +605,27 @@ def _significant_digits_general(
 
     # Pre-compute offset for efficiency
     e_offset = e - 1.0
-    
+
     # Compute successes
     for k in range(0, max_bits + 1):
         if _VERBOSE_MODE:
             ic(k, significant, mask, z_max)
 
         kth = k - e_offset
-        successes = np.min(z <= np.exp2(-kth), axis=axis)
-        mask = np.logical_and(mask, successes)
-        significant[mask] = k
+        # kth is always integer-valued (k is an int, e_offset is an integer
+        # scaling factor), so the threshold 2**-kth is computed with ldexp
+        # rather than exp2: exp2 is a transcendental function whose rounding
+        # can differ by 1 ULP between CPU (numpy) and GPU (cupy/CUDA) libm
+        # implementations, which flips the boundary comparison below.
+        threshold = xp.ldexp(1.0, (-kth).astype(xp.int64))
+        successes = xp.min(z <= threshold, axis=axis)
+        mask = xp.logical_and(mask, successes)
+        significant = xp.where(mask, k, significant)
 
         if _VERBOSE_MODE:
-            ic(kth, np.exp2(-kth), successes, significant, mask)
+            ic(kth, threshold, successes, significant, mask)
 
-        if ~mask.all():
+        if not mask.all().item():
             break
 
     return significant
@@ -792,27 +808,26 @@ def _contributing_digits_cnh(
     z, e = _compute_z(
         array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
+    xp = _get_array_module(z)
     nb_samples = z.shape[axis]
     std = z.std(axis=axis, dtype=_internal_dtype)
     # if std == 0, we set it to the maximum value of z
     # to avoid returning the maximum number of bits depending on the dtype
     # while it can be lower (cf. Cramer example)
-    z_eps = np.max(np.abs(z), axis=axis)
-    std = _fill_where(std, fill_value=z_eps, mask=std == 0)
-    # We need to mask the std where z_eps == 0
+    z_eps = xp.max(xp.abs(z), axis=axis)
+    std = xp.where(std == 0, z_eps, std)
+    # We need to mask the std where std == 0
     # In that case, we have no variance and z = 0
-    std0 = np.ma.array(std, mask=(z_eps == 0))
+    mask = std == 0
     chi2 = scipy.stats.chi2.interval(confidence, nb_samples - 1)[0]
     delta_chn = (
         0.5 * np.log2((nb_samples - 1) / chi2)
         + np.log2(probability - 0.5)
         + np.log2(2 * np.sqrt(2 * np.pi))
     )
-    contributing = -np.ma.log2(std0) + (e - 1) - delta_chn
+    contributing = -xp.log2(xp.where(mask, 1, std)) + (e - 1) - delta_chn
     max_bits = _get_significant_size(z, dtype=dtype) + (e - 1)
-    if contributing.ndim == 0:
-        contributing = np.ma.array(contributing, mask=std0.mask)
-    contributing = np.ma.filled(contributing, fill_value=max_bits - delta_chn)
+    contributing = xp.where(mask, max_bits - delta_chn, contributing)
     return contributing
 
 
@@ -874,24 +889,30 @@ def _contributing_digits_general(
     z, e = _compute_z(
         array, reference, error, axis=axis, shuffle_samples=shuffle_samples
     )
+    xp = _get_array_module(z)
     sample_shape = tuple(dim for i, dim in enumerate(z.shape) if i != axis)
     max_bits = _get_significant_size(z, dtype=dtype)
-    contributing = np.full(shape=sample_shape, fill_value=1)
-    mask = np.full_like(contributing, True, dtype=bool)
-    
+    contributing = xp.full(shape=sample_shape, fill_value=1)
+    mask = xp.full_like(contributing, True, dtype=bool)
+
     # Pre-compute offset and absolute z for efficiency
     e_offset = e - 1.0
-    abs_z = np.abs(z)
+    abs_z = xp.abs(z)
 
     for k in range(1, max_bits + 1):
         kth = k - e_offset
-        kth_bit_z = np.floor(abs_z * np.exp2(kth)).astype(np.int64)
+        # kth is always integer-valued (k is an int, e_offset is an integer
+        # scaling factor); see _significant_digits_general for why ldexp is
+        # used instead of exp2 here (CPU/GPU libm rounding can disagree by
+        # 1 ULP at exact powers of two, which flips the floor()/parity test).
+        scale = xp.ldexp(1.0, kth.astype(xp.int64))
+        kth_bit_z = xp.floor(abs_z * scale).astype(np.int64)
 
-        successes = np.sum(kth_bit_z & 1, axis=axis) == 0
-        mask = np.logical_and(mask, successes)
-        contributing[mask] = k
+        successes = xp.sum(kth_bit_z & 1, axis=axis) == 0
+        mask = xp.logical_and(mask, successes)
+        contributing = xp.where(mask, k, contributing)
 
-        if ~mask.all():
+        if not mask.all().item():
             break
 
     return contributing
@@ -1199,6 +1220,16 @@ def format_uncertainty(
     """Format the array with significant and contributing digits
 
     """
+
+    # significant_digits/contributing_digits are computed on the host, not
+    # the GPU, even when given cupy inputs: numpy's and cupy's std() use
+    # different summation orders and can disagree by 1 ULP, which propagates
+    # through log2()/ceil() and can flip the formatted digit count between
+    # backends. Formatting must be backend-independent, so move to host first.
+    if _iscupy(array):
+        array = array.get()
+    if _iscupy(reference):
+        reference = reference.get()
 
     sd = significant_digits(
         array,
