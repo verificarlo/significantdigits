@@ -127,13 +127,13 @@ class TestParameterValidation:
         _assert_is_valid_inputs(np.array([[1, 2], [3, 4]]))
         
         # Invalid inputs
-        with pytest.raises(TypeError, match="array must be of type"):
+        with pytest.raises(TypeError, match="array must be array-like"):
             _assert_is_valid_inputs("invalid")
         
-        with pytest.raises(TypeError, match="array must be of type"):
+        with pytest.raises(TypeError, match="array must be array-like"):
             _assert_is_valid_inputs(123)
         
-        with pytest.raises(TypeError, match="array must be of type"):
+        with pytest.raises(TypeError, match="array must be array-like"):
             _assert_is_valid_inputs(None)
         
         # 0-dimensional arrays should fail

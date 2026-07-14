@@ -57,8 +57,60 @@ class TestGpuDetection:
         assert dispatch(np.array([1.0, 2.0]), "mean") is dense.mean
 
     def test_gpu_dispatcher_unknown_method(self):
-        with pytest.raises(NotImplementedError):
-            gpu.dispatcher("unknown_method")
+        if gpu.cp is None:
+            with pytest.raises(ImportError, match="CuPy is required for GPU operations"):
+                gpu.dispatcher("unknown_method")
+        else:
+            with pytest.raises(NotImplementedError):
+                gpu.dispatcher("unknown_method")
+
+    def test_is_available_false_when_no_device(self, monkeypatch):
+        class FakeRuntime:
+            @staticmethod
+            def getDeviceCount():
+                return 0
+
+        class FakeCuda:
+            runtime = FakeRuntime()
+
+        class FakeCp:
+            cuda = FakeCuda()
+
+        monkeypatch.setattr(gpu, "cp", FakeCp())
+        assert gpu.is_available() is False
+
+    def test_is_available_false_on_runtime_error(self, monkeypatch):
+        class FakeRuntime:
+            @staticmethod
+            def getDeviceCount():
+                raise RuntimeError("CUDA unavailable")
+
+        class FakeCuda:
+            runtime = FakeRuntime()
+
+        class FakeCp:
+            cuda = FakeCuda()
+
+        monkeypatch.setattr(gpu, "cp", FakeCp())
+        assert gpu.is_available() is False
+
+    def test_gpu_wrappers_raise_clear_import_error_when_cupy_missing(self, monkeypatch):
+        monkeypatch.setattr(gpu, "cp", None)
+
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.mean(np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.var(np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.std(np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.absolute_error(np.array([1.0]), np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.relative_error(np.array([1.0]), np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.asarray(np.array([1.0]))
+        with pytest.raises(ImportError, match="Install it with `pip install cupy`"):
+            gpu.dispatcher("mean")
 
 
 @pytest.mark.gpu
@@ -191,3 +243,11 @@ class TestGpuDigits:
     def test_invalid_0d_cupy_array(self):
         with pytest.raises(TypeError):
             sd.significant_digits(cp.asarray(1.0), reference=1.0)
+
+    def test_general_methods_loop_termination_is_safe_on_cupy(self):
+        x = np.array([1.0, 1.5, 2.0, 2.5], dtype=float)
+        ref = 1.0
+        sig = sd.significant_digits(cp.asarray(x), reference=ref, method=sd.Method.General)
+        con = sd.contributing_digits(cp.asarray(x), reference=ref, method=sd.Method.General)
+        assert gpu.iscupy(sig)
+        assert gpu.iscupy(con)

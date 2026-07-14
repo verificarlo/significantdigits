@@ -191,7 +191,7 @@ _default_probability = {Metric.Significant: 0.95, Metric.Contributing: 0.51}
 _default_confidence = {Metric.Significant: 0.95, Metric.Contributing: 0.95}
 
 InputType = npt.ArrayLike
-r"""Valid random variable inputs type (np.ndarray, tuple, list)
+r"""Valid random variable inputs type (np.ndarray, cupy.ndarray, tuple, list)
 
 Types allowing for `array` in significant_digits and contributing_digits functions
 
@@ -245,7 +245,8 @@ def _assert_is_confidence(confidence: float) -> None:
 def _assert_is_valid_inputs(array: InputType) -> None:
     if not isinstance(array, (np.ndarray, list, tuple)) and not _iscupy(array):
         raise TypeError(
-            f"array must be of type {InputType}, not {type(array).__name__}"
+            "array must be array-like (numpy.ndarray, cupy.ndarray, list, tuple), "
+            f"not {type(array).__name__}"
         )
     if getattr(array, "ndim", None) == 0:
         raise TypeError("array must be at least 1D")
@@ -624,7 +625,7 @@ def _significant_digits_general(
         if _VERBOSE_MODE:
             ic(kth, threshold, successes, significant, mask)
 
-        if ~mask.all():
+        if not mask.all().item():
             break
 
     return significant
@@ -911,7 +912,7 @@ def _contributing_digits_general(
         mask = xp.logical_and(mask, successes)
         contributing = xp.where(mask, k, contributing)
 
-        if ~mask.all():
+        if not mask.all().item():
             break
 
     return contributing
