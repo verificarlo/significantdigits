@@ -1,4 +1,12 @@
+<p align="center">
+  <img src="assets/logo-text.png" alt="significantdigits logo" width="500">
+</p>
+
 # significantdigits package - v0.5.0
+
+<p align="center">
+  <img src="assets/logo-compact.png" alt="significantdigits logo" width="500">
+</p>
 
 Compute the number of significant digits based on the paper [Confidence Intervals for Stochastic Arithmetic](https://arxiv.org/abs/1807.09655).
 This package is also inspired by the [Jupyter Notebook](https://github.com/interflop/stochastic-confidence-intervals/blob/master/Intervals.ipynb) included with the publication.
