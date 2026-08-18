@@ -9,8 +9,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/verificarlo/significantdigits/actions/workflows/python-app.yml"><img src="https://github.com/verificarlo/significantdigits/actions/workflows/python-app.yml/badge.svg" alt="Tests"></a>
   <a href="https://pypi.org/project/significantdigits/"><img src="https://img.shields.io/pypi/v/significantdigits.svg" alt="PyPI version"></a>
   <a href="https://pypi.org/project/significantdigits/"><img src="https://img.shields.io/pypi/pyversions/significantdigits.svg" alt="Python versions"></a>
+  <a href="https://verificarlo.github.io/significantdigits/"><img src="https://img.shields.io/badge/docs-verificarlo.github.io-blue.svg" alt="Documentation"></a>
+  <a href="https://llvm.org/LICENSE.txt"><img src="https://img.shields.io/badge/license-Apache--2.0%20WITH%20LLVM--exception-blue.svg" alt="License"></a>
   <a href="https://doi.org/10.5281/zenodo.21362284"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.21362284.svg" alt="DOI"></a>
 </p>
 
@@ -35,7 +38,8 @@ This package is also inspired by the [Jupyter Notebook](https://github.com/inter
     - [Contributing digits](#contributing-digits)
     - [Formatting Results with `format_uncertainty`](#formatting-results-with-format_uncertainty)
     - [Utils function](#utils-function)
-      - [`probability_estimation_general`](#probability_estimation_general)
+      - [`change_basis`](#change_basis)
+      - [`probability_estimation_bernoulli`](#probability_estimation_bernoulli)
       - [`minimum_number_of_trials`](#minimum_number_of_trials)
   - [Recent Improvements](#recent-improvements)
   - [Testing](#testing)
@@ -59,21 +63,21 @@ of a results sample with a given known reference:
 >>> # simulates results with epsilon differences
 >>> X = [1+U(-1,1)*eps for _ in range(10)]
 >>> sd.significant_digits(X, reference=1)
->>> 51.02329058847853
+>>> 51.48272220711583
 ```
 
 or with the CLI interface assuming `X` is in `test.txt`:
 
 ```bash
 > significantdigits --metric significant -i "$(cat test.txt)" --input-format stdin --reference 1
-> (51.02329058847853,)
+> (array(51.48272221),)
 ```
 If the reference is unknown, one can use the sample average:
 
 ```python
 ...
 >>> sd.significant_digits(X, reference=np.mean(X))
->>> 51.02329058847853
+>>> 51.48272220711583
 ```
 
 To print the result as mean +/- error, use the format_uncertainty function:
@@ -128,7 +132,7 @@ Usage is identical to the NumPy case; only the array type changes:
 >>> X = 1 + cp.random.uniform(-1, 1, 10) * eps
 >>> s = sd.significant_digits(X, reference=1)  # runs on the GPU
 >>> s.get()  # transfer back to the host
-array(51.02329059)
+array(51.48272221)
 ```
 
 Mixing inputs is supported: if the array is on the GPU and the reference is a
@@ -339,51 +343,105 @@ contributing_digits(array: InputType,
 
 ### Formatting Results with `format_uncertainty`
 
-Formats the results as mean ± error for each sample.
+Formats each value as `mean ± error`, using the computed significant and
+contributing digits to choose how many digits to show.
 
 ```python
 format_uncertainty(array: InputType,
                    reference: ReferenceType | None = None,
                    axis: int = 0,
                    error: Error | str = Error.Relative,
-                   dtype: DTypeLike | None = None
-                   ) -> list[str]
-    Format the uncertainty of each sample as a string
+                   method: Method | str = Method.CNH,
+                   probability: float = 0.51,
+                   confidence: float = 0.95,
+                   shuffle_samples: bool = False,
+                   dtype: DTypeLike | None = None,
+                   as_tuple: bool = False
+                   ) -> np.ndarray | tuple[np.ndarray, np.ndarray]
+    Format an array with its significant and contributing digits.
 
-    This function returns a list of strings representing each value in the input array
-    formatted as "mean ± error", where the error is computed with respect to the reference.
+    This function computes and formats each element of the input array
+    to display its value along with its uncertainty, based on the calculated
+    significant and contributing digits. The output provides a human-readable
+    representation of numerical precision, using the appropriate number of
+    digits and error notation.
 
     Parameters
     ----------
-    array: InputType
-        Array of values to format
-    reference: ReferenceType | None, optional=None
-        Reference value(s) for error computation
-    axis: int, optional=0
-        Axis along which to compute the mean and error
-    error: Error | str, optional=Error.Relative
-        Error function to use for uncertainty calculation
-    dtype: DTypeLike | None, optional=None
-        Numerical type used for computation
+    array : InputType
+        The array of values to format.
+    reference : ReferenceType or None, optional
+        The reference values for error computation. If None, the array is split
+        and compared internally.
+    axis : int, default=0
+        Axis along which the digits are computed.
+    error : Error or str, default=Error.Relative
+        The error metric to use ('absolute' or 'relative').
+    method : Method or str, default=Method.CNH
+        The statistical method for digit estimation.
+    probability : float, default=0.51
+        Probability for the contributing digits result.
+    confidence : float, default=0.95
+        Confidence level for the digits result.
+    shuffle_samples : bool, default=False
+        Whether to shuffle samples when splitting the array.
+    dtype : dtype_like or None, default=None
+        Data type used for computation.
+    as_tuple : bool, default=False
+        If True, returns a tuple of value and error.
+        If False, returns a formatted string for each element.
 
     Returns
     -------
-    list[str]
-        List of formatted strings for each sample
+    np.ndarray
+        An array of formatted strings, each showing the value and its uncertainty.
+    or
+    Tuple[np.ndarray, np.ndarray]
+        If `as_tuple` is True, returns a tuple containing two arrays:
+        the first with formatted values and the second with formatted errors.
+
+    Notes
+    -----
+    For absolute error:
+        The uncertainty is shown as ± 2^{-s}, where s is the number of significant digits.
+    For relative error:
+        The uncertainty is shown as ± y·2^{-s}, where y is the reference value.
 ```
 
 ### Utils function
 
 These are utility functions for the general case.
 
-#### `probability_estimation_general`
+#### `change_basis`
+
+Converts a result expressed in bits into another basis, for example base 10 for
+decimal digits.
+
+```python
+change_basis(array: InputType, basis: int) -> OutputType
+    Changes basis from binary to `basis` representation
+
+    Parameters
+    ----------
+    array : np.ndarray
+        array_like containing significant or contributing bits
+    basis : int
+        output basis
+
+    Returns
+    -------
+    np.ndarray
+        Array convert to basis `basis`
+```
+
+#### `probability_estimation_bernoulli`
 
 Estimates the lower bound probability given the sample size.
 
 
 ```python
-probability_estimation_general(success: int, trials: int, confidence: float) -> float
-    Computes probability lower bound for Bernouilli process
+probability_estimation_bernoulli(success: int, trials: int, confidence: float) -> float
+    Computes probability lower bound for Bernoulli process
 
     This function computes the probability associated with metrics
     computed in the general case (without assumption on the underlying
@@ -402,7 +460,8 @@ probability_estimation_general(success: int, trials: int, confidence: float) -> 
     Returns
     -------
     float
-        The lower bound probability with `confidence` level to have `success` successes for `trials` trials
+        The lower bound probability with `confidence` level to have `success`
+        successes for `trials` trials
 ```
 
 #### `minimum_number_of_trials`
@@ -436,27 +495,28 @@ minimum_number_of_trials(probability: float, confidence: float) -> int
 
 ## Recent Improvements
 
-**Bug Fixes & Reliability:**
-- Fixed critical parameter validation bug in CLI argument handling
-- Corrected integer division precision issues in sample size calculations
-- Added missing return statements for error handling edge cases
+**v0.5.1:**
+- Fixed early termination of the General-method estimator, which stopped before
+  every location had failed
+- Accepted the documented case-insensitive method and error names
+- Shuffled copies along the selected axis, so callers' arrays are no longer mutated
+- Added regression coverage for each of the above
+
+**v0.5.0:**
+- Added an optional GPU backend based on [CuPy](https://cupy.dev/), with dispatch
+  between the dense, sparse and GPU implementations
+- Hardened CuPy control flow and GPU availability/error semantics
+
+**Earlier:**
+- Fixed parameter validation in CLI argument handling and integer division
+  precision in sample size calculations
 - Enhanced numerical stability for extreme values (inf/NaN handling)
+- Optimized exponential operations using `np.exp2()` and bitwise operations
+  with `& 1` masking
 
-**Performance Optimizations (15-40% faster):**
-- Optimized exponential operations using `np.exp2()` instead of `2**(-kth)`
-- Enhanced bitwise operations with efficient `& 1` masking
-- Improved memory allocation and array operations
-- Better conditional processing and vectorized computations
-
-**Comprehensive Test Suite (3x more tests):**
-- Expanded from 51 to 153 total tests across 5 new test modules
-- Added property-based testing and fuzzing (65 tests)
-- Enhanced edge case coverage (26 tests)
-- Comprehensive validation and error handling tests (24 tests)
-- Performance regression testing and integration tests (38 tests)
 ## Testing
 
-The package includes a comprehensive test suite with 153 tests across multiple categories:
+The package includes a comprehensive test suite with 213 tests across 15 modules:
 
 ### Running Tests
 
@@ -471,20 +531,29 @@ uv run pytest
 uv run pytest -m performance
 
 # Run specific test categories
-uv run pytest tests/test_edge_cases.py      # Edge cases and numerical stability
+uv run pytest tests/test_edge_cases.py     # Edge cases and numerical stability
 uv run pytest tests/test_validation.py     # Parameter validation and error handling
 uv run pytest tests/test_property_based.py # Property-based testing and fuzzing
 uv run pytest tests/test_integration.py    # End-to-end integration tests
 uv run pytest tests/test_performance.py    # Performance regression tests
+uv run pytest tests/test_regressions.py    # Coverage for previously fixed defects
+uv run pytest tests/test_gpu.py            # CuPy GPU backend (needs CuPy + a CUDA device)
+
+# Control the sample count used by stochastic tests (default: 3)
+uv run pytest --nsamples=10
 ```
 
 ### Test Categories
 
+- **GPU (37 tests)**: CuPy backend and dispatch (skipped without CuPy and a CUDA device)
 - **Edge Cases (26 tests)**: Numerical stability, inf/NaN handling, extreme values
 - **Validation (24 tests)**: Parameter validation, input sanitization, error handling
-- **Property-Based (65 tests)**: Mathematical invariants, randomized testing, fuzzing
-- **Integration (23 tests)**: CLI testing, file I/O, complete workflows
+- **Regressions (23 tests)**: Coverage for previously fixed defects
+- **Integration (20 tests)**: CLI testing, file I/O, complete workflows
+- **Property-Based (17 tests)**: Mathematical invariants, randomized testing, fuzzing
 - **Performance (15 tests)**: Regression testing, optimization verification
+- **Reference datasets and units (51 tests)**: Parker, Cramer and Higham problems,
+  plus scalar, Z-computation, argument-parsing and formatting checks
 
 ### Mathematical Properties Tested
 
